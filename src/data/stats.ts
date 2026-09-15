@@ -9,6 +9,22 @@
 import type { ExerciseLog, WorkoutBlock, WorkoutSession } from '../types';
 import { formatLocalDate, loadSessions, loadSkipCounts } from './storage';
 
+/** Local midnight for a date string, as a timestamp. */
+function startOfDay(dateStr: string): number {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * Whole calendar days between two midnight timestamps.
+ * Rounded, so the 23 and 25 hour days either side of a DST change still
+ * count as one day apart.
+ */
+function daysBetween(laterMs: number, earlierMs: number): number {
+  return Math.round((laterMs - earlierMs) / 86400000);
+}
+
 // Last Workout
 export function getLastWorkout(): { blocks: WorkoutBlock[]; completedAt: string } | null {
   const sessions = loadSessions().filter(s => s.completedAt && s.blocks?.length > 0);
@@ -139,39 +155,34 @@ export function getWorkoutStats(): {
     ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
     : 0;
 
-  // Calculate streaks
-  const sortedDates = [...new Set(
-    sessions.map(s => new Date(s.startedAt).toDateString())
-  )].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  // Streaks, counted in calendar days.
+  //
+  // Two bugs previously lived here. tempStreak was only seeded when the most
+  // recent workout was today or yesterday, so longestStreak was short by one
+  // for any history that ended earlier. And currentStreak was reassigned on
+  // every contiguous pair anywhere in the list, so a long run from months ago
+  // could overwrite the real current streak once it had been broken.
+  const dayStamps = [...new Set(sessions.map(s => startOfDay(s.startedAt)))]
+    .sort((a, b) => b - a);
+
+  let longestStreak = 0;
+  let run = 0;
+  for (let i = 0; i < dayStamps.length; i++) {
+    run = (i === 0 || daysBetween(dayStamps[i - 1], dayStamps[i]) === 1) ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run);
+  }
 
   let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 0;
-
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-
-  for (let i = 0; i < sortedDates.length; i++) {
-    const date = sortedDates[i];
-    const prevDate = i > 0 ? sortedDates[i - 1] : null;
-
-    if (i === 0) {
-      if (date === today || date === yesterday) {
-        currentStreak = 1;
-        tempStreak = 1;
-      }
-    } else if (prevDate) {
-      const diff = new Date(prevDate).getTime() - new Date(date).getTime();
-      if (diff <= 86400000 * 1.5) {
-        tempStreak++;
-        if (i < sortedDates.length && (sortedDates[0] === today || sortedDates[0] === yesterday)) {
-          currentStreak = tempStreak;
-        }
-      } else {
-        tempStreak = 1;
+  if (dayStamps.length > 0) {
+    const gapToLatest = daysBetween(startOfDay(now.toISOString()), dayStamps[0]);
+    // A streak is still live if the last workout was today or yesterday.
+    if (gapToLatest === 0 || gapToLatest === 1) {
+      currentStreak = 1;
+      for (let i = 1; i < dayStamps.length; i++) {
+        if (daysBetween(dayStamps[i - 1], dayStamps[i]) !== 1) break;
+        currentStreak++;
       }
     }
-    longestStreak = Math.max(longestStreak, tempStreak);
   }
 
   // Workouts by day of week (0 = Sunday)

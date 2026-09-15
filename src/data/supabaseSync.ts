@@ -278,7 +278,7 @@ export async function downloadCustomExercises(userId: string): Promise<Exercise[
   }
 }
 
-interface UserPreferences {
+export interface UserPreferences {
   rest_days: string[];
   equipment_config: Record<string, number>;
   favorites: { workouts: string[]; exercises: string[] };
@@ -313,7 +313,7 @@ export async function downloadUserPreferences(userId: string): Promise<UserPrefe
   }
 }
 
-interface Profile {
+export interface Profile {
   name: string | null;
   personality: string;
   theme: string;
@@ -385,17 +385,10 @@ export async function downloadAllData(userId: string): Promise<boolean> {
       localStorage.setItem('custom_exercises', JSON.stringify(exercises));
     }
     if (preferences) {
-      localStorage.setItem('rest_days', JSON.stringify(preferences.rest_days));
-      localStorage.setItem('equipment_config', JSON.stringify(preferences.equipment_config));
-      localStorage.setItem('workout_favorites', JSON.stringify(preferences.favorites));
-      localStorage.setItem('workout_skip_counts', JSON.stringify(preferences.skip_counts));
-      localStorage.setItem('workout_custom_descriptions', JSON.stringify(preferences.custom_descriptions));
-      localStorage.setItem('claude_chat_history', JSON.stringify(preferences.chat_history));
+      applyPreferencesToLocal(preferences);
     }
     if (profile) {
-      if (profile.name) localStorage.setItem('workout_user_name', profile.name);
-      localStorage.setItem('workout_personality', profile.personality);
-      localStorage.setItem('workout_theme', profile.theme);
+      applyProfileToLocal(profile);
     }
 
     onSyncStatusChange?.('synced');
@@ -425,10 +418,37 @@ export async function hasCloudData(userId: string): Promise<boolean> {
 }
 
 // Check if local has data
+/**
+ * Every localStorage key that holds something the user authored.
+ *
+ * hasLocalData used to check only sessions and saved workouts. A user whose
+ * local data was custom exercises, equipment or rest days therefore read as
+ * empty, and performInitialSync took the download branch, which overwrites
+ * those keys from the cloud. That is a data-loss path, so the check covers
+ * all of them.
+ */
+const USER_AUTHORED_KEYS = [
+  'workout_sessions',
+  'saved_workouts',
+  'custom_exercises',
+  'rest_days',
+  'equipment_config',
+  'equipment_inventory',
+  'owned_gear',
+  'body_metrics',
+  'activity_days',
+  'workout_favorites',
+  'workout_custom_descriptions',
+] as const;
+
+/** True when any stored value is present and not an empty collection. */
 export function hasLocalData(): boolean {
-  const sessions = localStorage.getItem('workout_sessions');
-  const workouts = localStorage.getItem('saved_workouts');
-  return !!(sessions && sessions !== '[]') || !!(workouts && workouts !== '[]');
+  return USER_AUTHORED_KEYS.some(key => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    const trimmed = raw.trim();
+    return trimmed !== '' && trimmed !== '[]' && trimmed !== '{}' && trimmed !== 'null';
+  });
 }
 
 // Initial sync on login
@@ -549,4 +569,45 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
     console.error('Failed to delete account:', err);
     return { success: false, error: 'Failed to delete account' };
   }
+}
+
+
+/** True when a downloaded value is worth writing over what is already local. */
+function isMeaningful(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value as object).length > 0;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+}
+
+/**
+ * Write downloaded preferences into localStorage.
+ *
+ * Signup creates a user_preferences row with empty defaults, so a cloud row
+ * existing is not evidence that the cloud knows anything. Each key is only
+ * overwritten when the cloud actually has a value for it, otherwise logging in
+ * on a device would blank preferences that only exist there.
+ */
+export function applyPreferencesToLocal(preferences: UserPreferences): void {
+  const pairs: [string, unknown][] = [
+    ['rest_days', preferences.rest_days],
+    ['equipment_config', preferences.equipment_config],
+    ['workout_favorites', preferences.favorites],
+    ['workout_skip_counts', preferences.skip_counts],
+    ['workout_custom_descriptions', preferences.custom_descriptions],
+    ['claude_chat_history', preferences.chat_history],
+  ];
+  for (const [key, value] of pairs) {
+    if (isMeaningful(value)) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  }
+}
+
+/** Write a downloaded profile into localStorage, skipping empty fields. */
+export function applyProfileToLocal(profile: Profile): void {
+  if (isMeaningful(profile.name)) localStorage.setItem('workout_user_name', profile.name as string);
+  if (isMeaningful(profile.personality)) localStorage.setItem('workout_personality', profile.personality);
+  if (isMeaningful(profile.theme)) localStorage.setItem('workout_theme', profile.theme);
 }
