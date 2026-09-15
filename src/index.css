@@ -233,20 +233,50 @@ body {
 
 :root {
   --mv-paper:    #faf7f2;
+  --mv-card:     #ffffff;
   --mv-ink:      #14110d;
   --mv-green:    #047857;
   --mv-track:    #ece7dd;
   --mv-muted:    #8c8478;
   --mv-faint:    #a89f90;
   --mv-hairline: #e5dfd4;
+  /* Violet survives in one place only: rest days in the calendars. */
+  --mv-violet:   #7c3aed;
+  /* Days that have not happened, or happened before tracking began. */
+  --mv-empty:    #f4f0e8;
+  --mv-empty-ink:#cfc8bb;
+  --mv-scrim:    rgba(250, 247, 242, 0.97);
+  --mv-green-1:  #9ecfbc;
+  --mv-green-2:  #2f9e78;
+  --mv-shadow:   0 1px 2px rgba(20, 17, 13, 0.05), 0 10px 26px -14px rgba(20, 17, 13, 0.22);
+}
+
+/* The same system after dark. Every screen reads these tokens, so the whole
+   design follows the theme rather than half of it staying light. */
+.dark {
+  --mv-paper:    #0f0d0a;
+  --mv-card:     #1c1813;
+  --mv-ink:      #f5f1ea;
+  --mv-green:    #10b981;
+  --mv-track:    #2c261e;
+  --mv-muted:    #9a9184;
+  --mv-faint:    #6f6a5e;
+  --mv-hairline: #2c261e;
+  --mv-violet:   #a78bfa;
+  --mv-empty:    #191510;
+  --mv-empty-ink:#4a453c;
+  --mv-scrim:    rgba(15, 13, 10, 0.97);
+  --mv-green-1:  #1d5c47;
+  --mv-green-2:  #0d8a63;
+  --mv-shadow:   0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 26px -14px rgba(0, 0, 0, 0.7);
 }
 
 .mv-paper { background: var(--mv-paper); color: var(--mv-ink); }
 
 .mv-card {
-  background: #ffffff;
+  background: var(--mv-card);
   border-radius: 18px;
-  box-shadow: 0 1px 2px rgba(20, 17, 13, 0.05), 0 10px 26px -14px rgba(20, 17, 13, 0.22);
+  box-shadow: var(--mv-shadow);
 }
 
 /* Every white rounded panel already in the app becomes a card. Two classes
@@ -258,7 +288,7 @@ body {
 .rounded-lg.bg-white {
   border-radius: 18px;
   border-color: transparent;
-  box-shadow: 0 1px 2px rgba(20, 17, 13, 0.05), 0 10px 26px -14px rgba(20, 17, 13, 0.22);
+  box-shadow: var(--mv-shadow);
 }
 
 /* The serif is the voice, not the body. One or two jobs per screen. */
