@@ -434,8 +434,8 @@ function MockInsightsScreen() {
           {bars.map(b => (
             <div key={b.name} className="flex items-center gap-3 py-1.5">
               <span className="w-[88px] flex-shrink-0 text-[13px]" style={{ color: 'var(--mv-ink)' }}>{b.name}</span>
-              <span className="flex-grow h-1.5 rounded-full" style={{ background: '#ece7dd' }}>
-                <span className="block h-1.5 rounded-full" style={{ width: `${b.pct}%`, background: '#047857' }} />
+              <span className="flex-grow h-1.5 rounded-full" style={{ background: 'var(--mv-track)' }}>
+                <span className="block h-1.5 rounded-full" style={{ width: `${b.pct}%`, background: 'var(--mv-green)' }} />
               </span>
               <span className="mv-caps w-8 text-right flex-shrink-0">{b.count}</span>
             </div>

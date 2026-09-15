@@ -30,6 +30,7 @@ import { Onboarding } from './components/Onboarding';
 import { UpdatePrompt } from './components/UpdatePrompt';
 
 const ONBOARDING_KEY = 'workout_onboarding_complete';
+const THEME_MIGRATED_KEY = 'workout_theme_light_default';
 
 /** Check if we're coming from an auth callback (magic link) */
 const isAuthCallback = () => {
@@ -56,9 +57,15 @@ function AppContent() {
     return !localStorage.getItem(ONBOARDING_KEY);
   });
   const [theme, setTheme] = useState<Theme>(() => {
+    // Light is the design. Changing the default only helped fresh installs,
+    // so this flips existing ones once as well: anyone carrying the old dark
+    // default lands on light, and a deliberate choice made after this sticks.
+    if (!localStorage.getItem(THEME_MIGRATED_KEY)) {
+      localStorage.setItem(THEME_MIGRATED_KEY, 'true');
+      localStorage.setItem('workout_theme', 'light');
+      return 'light';
+    }
     const saved = localStorage.getItem('workout_theme');
-    // Light is the design. Dark is still available in Settings, but a fresh
-    // install should land on the palette the app was designed in.
     return (saved as Theme) || 'light';
   });
   const workout = useWorkout();

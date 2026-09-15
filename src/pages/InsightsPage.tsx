@@ -17,15 +17,17 @@ import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
 
-const GREEN = '#047857';
-const TRACK = '#ece7dd';
-const VIOLET = '#7c3aed';
+// Read from the stylesheet so the screen follows the theme. Hardcoding these
+// is what left Today and Insights stranded in light while the rest went dark.
+const GREEN = 'var(--mv-green)';
+const TRACK = 'var(--mv-track)';
+const VIOLET = 'var(--mv-violet)';
 
 /** One day as a ring with its date in the middle. */
 function DayDonut({ day }: { day: DayCompletion }) {
   const degrees = Math.round(day.completion * 360);
   const ring = day.isFuture || day.isUntracked
-    ? '#f4f0e8'
+    ? 'var(--mv-empty)'
     : day.isRest
       ? `conic-gradient(from -90deg, ${VIOLET} 0deg ${degrees}deg, ${TRACK} ${degrees}deg 360deg)`
       : `conic-gradient(from -90deg, ${GREEN} 0deg ${degrees}deg, ${TRACK} ${degrees}deg 360deg)`;
@@ -39,10 +41,10 @@ function DayDonut({ day }: { day: DayCompletion }) {
       <span
         className="flex items-center justify-center rounded-full"
         style={{
-          width: 27, height: 27, background: '#ffffff',
+          width: 27, height: 27, background: 'var(--mv-card)',
           fontSize: 11.5,
           fontWeight: day.isToday ? 700 : 600,
-          color: day.isFuture || day.isUntracked ? '#cfc8bb' : day.isToday ? GREEN : 'var(--mv-ink)',
+          color: day.isFuture || day.isUntracked ? 'var(--mv-empty-ink)' : day.isToday ? GREEN : 'var(--mv-ink)',
         }}
       >
         {day.dayOfMonth}
@@ -126,13 +128,13 @@ function YearPanel({ now }: { now: Date }) {
   if (column.length) columns.push(column);
 
   const shade = (d: DayCompletion | null) => {
-    if (!d || d.isFuture || d.isUntracked) return '#f4f0e8';
+    if (!d || d.isFuture || d.isUntracked) return 'var(--mv-empty)';
     if (d.completion === 0) return TRACK;
     if (d.isRest) return VIOLET;
     // Three steps, matching the three daily habits.
     if (d.completion >= 1) return GREEN;
-    if (d.completion >= 0.66) return '#2f9e78';
-    return '#9ecfbc';
+    if (d.completion >= 0.66) return 'var(--mv-green-2)';
+    return 'var(--mv-green-1)';
   };
 
   return (
@@ -273,14 +275,14 @@ export function InsightsPage() {
       {/* The coach as a layer over the data, not a separate room. */}
       <div
         className="fixed left-0 right-0 bottom-16 px-4 pt-3 pb-3 safe-bottom"
-        style={{ background: 'rgba(250, 247, 242, 0.97)', borderTop: '1px solid var(--mv-hairline)' }}
+        style={{ background: 'var(--mv-scrim)', borderTop: '1px solid var(--mv-hairline)' }}
       >
         <div className="max-w-lg mx-auto">
           <button
             onClick={() => coachReady && setChatOpen(true)}
             disabled={!coachReady}
-            className="w-full flex items-center gap-2 h-12 pl-4 pr-1.5 rounded-[13px] bg-white disabled:opacity-60"
-            style={{ border: '1px solid var(--mv-hairline)' }}
+            className="w-full flex items-center gap-2 h-12 pl-4 pr-1.5 rounded-[13px] disabled:opacity-60"
+            style={{ background: 'var(--mv-card)', border: '1px solid var(--mv-hairline)' }}
           >
             <span className="flex-grow text-left text-[14px]" style={{ color: 'var(--mv-faint)' }}>
               {coachReady ? 'Ask about your week' : 'Add a Claude key in Settings'}
@@ -289,7 +291,7 @@ export function InsightsPage() {
               className="flex items-center justify-center w-9 h-9 rounded-[10px] flex-shrink-0"
               style={{ background: 'var(--mv-ink)' }}
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#faf7f2"
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--mv-paper)"
                 strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h13" /><path d="M12 5l7 7-7 7" />
               </svg>
