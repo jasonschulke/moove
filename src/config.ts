@@ -18,6 +18,15 @@
 export const CLAUDE_MODEL: string =
   import.meta.env.VITE_CLAUDE_MODEL ?? 'claude-sonnet-5';
 
+/**
+ * Which build is running, so "is the fix deployed" has an answer.
+ *
+ * A service worker can serve yesterday's bundle long after a deploy lands, and
+ * chasing that through asset hashes is guesswork. Netlify sets COMMIT_REF;
+ * locally it reads dev.
+ */
+export const BUILD_REF: string = __BUILD_REF__;
+
 /** Token ceiling for a full coach reply. */
 export const CLAUDE_MAX_TOKENS_CHAT = 1024;
 

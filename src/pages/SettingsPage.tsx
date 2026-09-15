@@ -10,6 +10,8 @@ import { HealthImport } from '../components/HealthImport';
 import type { Exercise, PersonalityType } from '../types';
 import { PERSONALITY_OPTIONS } from '../types';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { verifyClaudeKey } from '../lib/claudeClient';
+import { BUILD_REF } from '../config';
 
 interface SettingsPageProps {
   theme: 'dark' | 'light';
@@ -56,11 +58,27 @@ export function SettingsPage({ theme, onToggleTheme }: SettingsPageProps) {
     savePersonality(newPersonality);
   };
 
+  /** null before a check, then what the API said about the saved key. */
+  const [keyCheck, setKeyCheck] = useState<{ ok: boolean; message?: string } | null>(null);
+  const [checkingKey, setCheckingKey] = useState(false);
+
+  const checkKey = async (key: string) => {
+    setCheckingKey(true);
+    setKeyCheck(null);
+    const result = await verifyClaudeKey(key);
+    setKeyCheck(result.ok ? { ok: true } : { ok: false, message: result.message });
+    setCheckingKey(false);
+  };
+
   const handleSaveKey = () => {
     if (apiKey.trim()) {
-      setClaudeApiKey(apiKey.trim());
-      setSavedKey(apiKey.trim());
+      const key = apiKey.trim();
+      setClaudeApiKey(key);
+      setSavedKey(key);
       setApiKeyState('');
+      // Checked on the way in, so a refused key is obvious here rather than
+      // three screens away in the coach.
+      void checkKey(key);
     }
   };
 
@@ -68,6 +86,7 @@ export function SettingsPage({ theme, onToggleTheme }: SettingsPageProps) {
     clearClaudeApiKey();
     setSavedKey(null);
     setApiKeyState('');
+    setKeyCheck(null);
   };
 
   const handleDeleteExercise = (id: string) => {
@@ -538,9 +557,25 @@ export function SettingsPage({ theme, onToggleTheme }: SettingsPageProps) {
                   </svg>
                 </button>
               </div>
+              {keyCheck && (
+                <p className="text-sm px-1" style={{ color: keyCheck.ok ? '#047857' : '#b91c1c' }}>
+                  {keyCheck.ok ? 'Key works.' : keyCheck.message}
+                </p>
+              )}
+              <Button
+                variant="ghost"
+                onClick={() => savedKey && checkKey(savedKey)}
+                disabled={checkingKey}
+                className="w-full"
+              >
+                {checkingKey ? 'Checking...' : 'Test this key'}
+              </Button>
               <Button variant="ghost" onClick={handleClearKey} className="w-full">
                 Remove API Key
               </Button>
+              <p className="text-xs text-slate-500 px-1">
+                Build {BUILD_REF}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">

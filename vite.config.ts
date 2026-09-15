@@ -12,6 +12,12 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // Stamped into the bundle so Settings can say which build is running.
+  // Netlify exports COMMIT_REF on every build; locally there is none.
+  define: {
+    __BUILD_REF__: JSON.stringify(
+      (process.env.COMMIT_REF ?? '').slice(0, 7) || 'dev'),
+  },
   plugins: [
     react(),
     tailwindcss(),

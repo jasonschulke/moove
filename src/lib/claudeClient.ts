@@ -42,6 +42,43 @@ export interface ClaudeRequest {
 }
 
 /**
+ * Ask the API whether a key works, with the smallest call that can fail the
+ * same way a real one would.
+ *
+ * Worth the round trip: a bad key is otherwise silent until you open the coach
+ * and get a refusal three screens from where you typed it, and a key that was
+ * revoked elsewhere looks exactly like a key that was never saved.
+ */
+export async function verifyClaudeKey(key: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    });
+
+    if (response.ok) return { ok: true };
+
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 401) return { ok: false, message: 'That key was refused. Check it was copied whole, and that it has not been revoked.' };
+    if (response.status === 404) return { ok: false, message: `The key works, but the model ${CLAUDE_MODEL} is not available to it.` };
+    if (response.status === 429) return { ok: true }; // rate limited means it authenticated
+    return { ok: false, message: body.error?.message || `The API returned ${response.status}.` };
+  } catch {
+    return { ok: false, message: 'Could not reach the API. Check your connection.' };
+  }
+}
+
+/**
  * Send a request to Claude and return the first text block.
  * Throws with the API's own message when the request fails.
  */
