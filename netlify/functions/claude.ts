@@ -1,4 +1,3 @@
-import type { Context } from '@netlify/functions';
 
 /**
  * Server-side proxy for the Anthropic Messages API.
@@ -31,7 +30,7 @@ function json(body: unknown, status: number): Response {
   });
 }
 
-export default async (request: Request, _context: Context): Promise<Response> => {
+export default async (request: Request): Promise<Response> => {
   if (request.method !== 'POST') {
     return json({ error: { message: 'Method not allowed' } }, 405);
   }
