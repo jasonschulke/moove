@@ -1,7 +1,8 @@
 import { useState, useRef, useMemo } from 'react';
 import type { SavedWorkout, WorkoutBlock, Exercise, MuscleArea, EquipmentType, WorkoutSession } from '../types';
 import { CARDIO_TYPE_LABELS, CARDIO_TYPE_ICONS } from '../types';
-import { loadSavedWorkouts, deleteSavedWorkout, addSavedWorkout, updateSavedWorkout, getLastWeekAverages, loadFavorites, toggleFavoriteWorkout, toggleFavoriteExercise, getExerciseDescription, setExerciseDescription, clearExerciseDescription, loadSessions, deleteSession } from '../data/storage';
+import { loadSavedWorkouts, deleteSavedWorkout, addSavedWorkout, updateSavedWorkout, loadFavorites, toggleFavoriteWorkout, toggleFavoriteExercise, getExerciseDescription, setExerciseDescription, clearExerciseDescription, loadSessions, deleteSession } from '../data/storage';
+import { getLastWeekAverages } from '../data/stats';
 import { useExercises } from '../contexts/ExerciseContext';
 import { useSignUpPrompt } from '../contexts/SignUpPromptContext';
 import { Button } from '../components/Button';

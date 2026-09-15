@@ -1,11 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Exercise, MuscleArea, EquipmentType } from '../types';
-import {
-  getClaudeApiKey,
-  loadChatHistory,
-  saveChatHistory,
-  type ChatMessage,
-} from '../data/storage';
+import { getClaudeApiKey, loadChatHistory, saveChatHistory, type ChatMessage } from '../data/storage';
 import { useExercises } from '../contexts/ExerciseContext';
 import { useToast } from '../contexts/ToastContext';
 import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS_CHAT, CLAUDE_MAX_TOKENS_SUGGESTIONS } from '../config';

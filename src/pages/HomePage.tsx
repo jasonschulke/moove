@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { getWorkoutStats, getThisWeekWorkoutDates, getYearlyContributions, loadRestDays, saveRestDays, toggleYearDayStatus, hasWorkoutOnDate, hasRealWorkoutOnDate, addBacklogWorkout, getEffortHistory, backfillEffortScores, loadUserName, loadPersonality, getMostSkippedExercises, getSessionsByDate, getMostUsedExercises, formatLocalDate } from '../data/storage';
+import { loadRestDays, saveRestDays, toggleYearDayStatus, hasWorkoutOnDate, hasRealWorkoutOnDate, addBacklogWorkout, backfillEffortScores, loadUserName, loadPersonality, formatLocalDate } from '../data/storage';
+import { getWorkoutStats, getThisWeekWorkoutDates, getYearlyContributions, getEffortHistory, getMostSkippedExercises, getSessionsByDate, getMostUsedExercises } from '../data/stats';
 import { EffortChart } from '../components/EffortChart';
 import { getExerciseById } from '../data/exercises';
 import type { PersonalityType, WorkoutSession } from '../types';

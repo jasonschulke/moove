@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import type { EquipmentType, EquipmentInventory } from '../types';
-import {
-  loadEquipmentInventory,
-  addEquipmentWeight,
-  removeEquipmentWeight,
-} from '../data/storage';
+import { loadEquipmentInventory, addEquipmentWeight, removeEquipmentWeight } from '../data/storage';
 
 const EQUIPMENT_TYPES: { type: Exclude<EquipmentType, 'bodyweight'>; label: string; icon: string }[] = [
   { type: 'kettlebell', label: 'Kettlebells', icon: 'fitness_center' },

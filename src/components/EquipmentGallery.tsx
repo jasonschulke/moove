@@ -1,13 +1,6 @@
 import { useState } from 'react';
 import type { EquipmentType, EquipmentInventory } from '../types';
-import {
-  loadEquipmentInventory,
-  addEquipmentWeight,
-  removeEquipmentWeight,
-  loadOwnedGear,
-  addOwnedGear,
-  removeOwnedGear,
-} from '../data/storage';
+import { loadEquipmentInventory, addEquipmentWeight, removeEquipmentWeight, loadOwnedGear, addOwnedGear, removeOwnedGear } from '../data/storage';
 
 interface EquipmentItem {
   type: Exclude<EquipmentType, 'bodyweight'>;
