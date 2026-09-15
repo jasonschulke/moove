@@ -7,7 +7,6 @@
 
 import type { WorkoutSession, ExerciseLog, SavedWorkout, WorkoutBlock } from '../types';
 import { generateUUID } from '../utils/uuid';
-import { getDeviceId } from './sync';
 import { supabase } from '../lib/supabase';
 import { scheduleSyncToCloud } from './supabaseSync';
 
@@ -60,9 +59,6 @@ export function formatLocalDate(date: Date): string {
 
 export function saveUserName(name: string): void {
   localStorage.setItem(USER_NAME_KEY, name);
-  // Log user identity for analytics
-  const deviceId = getDeviceId();
-  console.log('[Moove] User identity:', { deviceId, userName: name, timestamp: new Date().toISOString() });
   triggerSyncIfLoggedIn();
 }
 

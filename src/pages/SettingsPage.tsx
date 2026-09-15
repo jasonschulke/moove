@@ -15,7 +15,7 @@ import {
   exportExerciseLogsAsCSV,
   clearAllData,
 } from '../data/storage';
-import { getDeviceId } from '../data/sync';
+import { getDeviceId } from '../utils/deviceId';
 import { deleteAllCloudData } from '../data/supabaseSync';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthModal } from '../components/AuthModal';
