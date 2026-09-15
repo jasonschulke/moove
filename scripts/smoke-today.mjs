@@ -26,6 +26,45 @@ const ring = () => page.locator('[role="img"][aria-label$="done today"]').first(
 const settle = () => page.waitForTimeout(2600); // 2s splash, then render
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
+await page.evaluate(() => localStorage.clear());
+await page.reload({ waitUntil: 'networkidle' });
+await settle();
+
+// ---------------------------------------------------------------- onboarding
+// A fresh install walks the tour first. It must describe the nav that exists.
+check('onboarding opens on a clean install',
+  await page.getByText('Welcome to Moove').isVisible().catch(() => false));
+
+const dots = await page.locator('.rounded-full.transition-all').count();
+check('the tour is five steps, not six', dots === 5, String(dots));
+
+await page.getByPlaceholder("What's your first name?").fill('Test');
+await page.getByRole('button', { name: 'Next' }).click();   // -> personality
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Next' }).click();   // -> today
+await page.waitForTimeout(600);
+
+check('the tour reaches a Today step',
+  await page.getByText('Start With Today').isVisible().catch(() => false));
+
+const previewIcons = await page.locator('[data-testid="nav-preview"] svg').count();
+check('the nav preview shows four icons', previewIcons === 4, String(previewIcons));
+
+const tourText = await page.locator('body').innerText();
+check('no Ask Coach step', !/Ask Coach/.test(tourText));
+check('the tour does not describe the year grid', !/year grid/i.test(tourText));
+
+await page.getByRole('button', { name: 'Next' }).click();   // -> workout
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Next' }).click();   // -> library
+await page.waitForTimeout(400);
+check('Library is the last step',
+  await page.getByRole('button', { name: "Let's Go" }).isVisible().catch(() => false));
+await page.getByRole('button', { name: "Let's Go" }).click();
+await page.waitForTimeout(800);
+check('finishing the tour lands on Today', await ring().isVisible().catch(() => false));
+
+// ---------------------------------------------------------------- the screen
 await page.evaluate(() => {
   localStorage.clear();
   localStorage.setItem('workout_onboarding_complete', 'true');

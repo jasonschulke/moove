@@ -11,7 +11,7 @@ interface OnboardingProps {
 const STEPS = [
   {
     title: 'Welcome to Moove',
-    description: 'Your personal workout tracker. Track workouts, build routines, and stay consistent.',
+    description: 'One question a day: what can you do today to move forward. Log it in a tap and get on with your life.',
     highlight: null,
     type: 'welcome',
   },
@@ -22,14 +22,14 @@ const STEPS = [
     type: 'personality',
   },
   {
-    title: 'Track Your Progress',
-    description: 'See your workout history at a glance. The year grid shows your consistency - tap any day to log a workout or rest day.',
-    highlight: 'home',
+    title: 'Start With Today',
+    description: 'The ring is the day: walk, walk the dog, dry day. Under it sits one suggestion, picked from what you still owe the week and how much week is left.',
+    highlight: 'today',
     type: 'feature',
   },
   {
     title: 'Start a Workout',
-    description: 'Choose from your saved workouts or create a custom routine with warmup, strength, conditioning, and cooldown blocks.',
+    description: 'Choose from your saved workouts or build a custom routine with warmup, strength, conditioning, and cooldown blocks.',
     highlight: 'workout',
     type: 'feature',
   },
@@ -37,12 +37,6 @@ const STEPS = [
     title: 'Build Your Library',
     description: 'Save your favorite workouts and browse exercises. Customize routines to match your equipment and goals.',
     highlight: 'library',
-    type: 'feature',
-  },
-  {
-    title: 'Ask Coach',
-    description: 'Have questions about exercises or form? Chat with Coach to get personalized guidance and add new exercises.',
-    highlight: 'coach',
     type: 'feature',
   },
 ];
@@ -100,22 +94,24 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       {/* Dimmed background */}
       <div className="absolute inset-0 bg-slate-900/80 z-0" />
 
-      {/* Content area with mock UI */}
-      <div className="relative flex-1 flex flex-col z-10">
-        {/* Mock screen preview - changes based on highlighted feature */}
-        <div className="flex-1 overflow-hidden opacity-40 pointer-events-none">
+      {/* Content area with mock UI.
+          The preview, the nav highlight and the card are flow siblings in a
+          column. They used to be absolutely positioned, which put the nav
+          highlight permanently behind the card, so the one thing those steps
+          exist to point at was never visible. */}
+      <div className="relative flex-1 min-h-0 flex flex-col z-10">
+        <div className="flex-1 min-h-0 overflow-hidden opacity-40 pointer-events-none">
           {currentStep.type === 'welcome' && <MockWelcomeScreen />}
           {currentStep.type === 'personality' && <MockPersonalityScreen />}
-          {currentStep.highlight === 'home' && <MockHomeScreen />}
+          {currentStep.highlight === 'today' && <MockTodayScreen />}
           {currentStep.highlight === 'workout' && <MockWorkoutScreen />}
           {currentStep.highlight === 'library' && <MockLibraryScreen />}
-          {currentStep.highlight === 'coach' && <MockCoachScreen />}
         </div>
 
-        {/* Highlight overlay for nav items */}
+        {/* Which tab this step is about */}
         {currentStep.highlight && (
-          <div className="absolute bottom-20 left-0 right-0 flex justify-around px-4 pb-2">
-            {['home', 'workout', 'library', 'coach', 'settings'].map((item) => (
+          <div data-testid="nav-preview" className="flex justify-around px-4 pb-2 pt-1 flex-shrink-0">
+            {['today', 'workout', 'library', 'settings'].map((item) => (
               <div
                 key={item}
                 className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
@@ -132,7 +128,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Bottom card */}
-      <div className="absolute bottom-4 left-4 right-4 z-20 bg-white dark:bg-slate-800 rounded-3xl px-6 pt-6 pb-8 shadow-xl">
+      <div className="relative z-20 m-4 flex-shrink-0 bg-white dark:bg-slate-800 rounded-3xl px-6 pt-6 pb-8 shadow-xl">
         {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-6">
           {STEPS.map((_, i) => (
@@ -325,85 +321,77 @@ function MockPersonalityScreen() {
   );
 }
 
-// Mock home screen for onboarding preview
-function MockHomeScreen() {
+// Mock Today screen for onboarding preview
+function MockTodayScreen() {
+  const rows = [
+    { name: 'Walk', done: false, detail: null },
+    { name: 'Walk the dog', done: false, detail: null },
+    { name: 'Dry day', done: true, detail: null },
+    { name: 'Lift', done: false, detail: '0 OF 3 THIS WEEK' },
+    { name: 'Run', done: false, detail: '0 OF 1 THIS WEEK' },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 px-4 pt-16">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
-        <img src="/moove.svg" alt="Home" className="h-5 dark:invert" />
-      </div>
+    <div className="today-paper min-h-screen pt-14">
+      <header className="px-5 pb-3 flex items-baseline justify-between">
+        <span className="text-[26px] font-semibold tracking-tight" style={{ color: 'var(--today-ink)' }}>14</span>
+        <span className="today-caps">September</span>
+      </header>
+      <div className="today-rule mx-5" />
 
-      {/* Greeting */}
-      <div className="mb-4">
-        <div className="h-6 w-40 bg-slate-300 dark:bg-slate-700 rounded mb-1" />
-        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-600 rounded" />
-      </div>
-
-      {/* This Month card */}
-      <div className="mb-4">
-        <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">This Month</div>
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-          {/* Date navigation */}
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700" />
-            <div className="text-sm text-slate-600 dark:text-slate-300 font-medium">Thursday, January 29</div>
-            <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700" />
+      <div className="px-4 pt-5">
+        <div className="today-card flex items-center gap-5 p-5">
+          <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
+            <svg width="88" height="88" viewBox="0 0 88 88" className="-rotate-90">
+              <circle cx="44" cy="44" r="40" fill="none" stroke="var(--today-track)" strokeWidth="8" />
+              <circle cx="44" cy="44" r="40" fill="none" stroke="var(--today-green)" strokeWidth="8"
+                strokeLinecap="round" strokeDasharray={2 * Math.PI * 40}
+                strokeDashoffset={(2 * Math.PI * 40) * (2 / 3)} />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="today-serif leading-none text-[26px]" style={{ color: 'var(--today-ink)' }}>
+                1<span style={{ color: 'var(--today-faint)' }}>/3</span>
+              </span>
+            </div>
           </div>
-          {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-              <div key={i} className="text-center text-xs text-slate-400">{d}</div>
-            ))}
-          </div>
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: 35 }).map((_, i) => (
-              <div
-                key={i}
-                className={`aspect-square rounded-md ${
-                  i < 3 ? 'bg-transparent' :
-                  i < 10 && i >= 3 ? 'bg-emerald-500' :
-                  i < 15 ? 'bg-slate-200 dark:bg-slate-700' :
-                  'bg-slate-100 dark:bg-slate-800'
-                }`}
-              />
-            ))}
+          <div>
+            <div className="today-caps mb-1.5">Today</div>
+            <div className="text-[14px]" style={{ color: 'var(--today-muted)' }}>2 still open.</div>
           </div>
         </div>
       </div>
 
-      {/* This Year card */}
-      <div>
-        <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">This Year</div>
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-          {/* Year grid */}
-          <div className="flex gap-[3px] mb-2">
-            {Array.from({ length: 24 }).map((_, weekIdx) => (
-              <div key={weekIdx} className="flex flex-col gap-[3px]">
-                {Array.from({ length: 7 }).map((_, dayIdx) => (
-                  <div
-                    key={dayIdx}
-                    className={`w-[11px] h-[11px] rounded-[2px] ${
-                      weekIdx < 4 && dayIdx < 5 ? 'bg-emerald-500' :
-                      weekIdx < 4 ? 'bg-slate-200 dark:bg-slate-700' :
-                      'bg-slate-200 dark:bg-slate-700'
-                    }`}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-          {/* Timeline */}
-          <div className="flex gap-[3px]">
-            {Array.from({ length: 24 }).map((_, i) => (
-              <div key={i} className={`w-[11px] h-[2px] rounded-full ${
-                i < 4 ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-slate-300 dark:bg-slate-600'
-              }`} />
-            ))}
-          </div>
+      <div className="px-4 pt-4">
+        <div className="today-card p-5">
+          <div className="today-caps mb-2">Next</div>
+          <div className="today-serif text-[26px] leading-tight mb-1" style={{ color: 'var(--today-ink)' }}>Lift</div>
+          <div className="text-[13.5px]" style={{ color: 'var(--today-muted)' }}>3 left, 7 days</div>
         </div>
+      </div>
+
+      <div className="px-4 pt-5 flex flex-col gap-2">
+        {rows.map(row => (
+          <div key={row.name} className="today-card flex items-center gap-3 px-4 py-3.5">
+            <span className="flex items-center justify-center flex-shrink-0 rounded-full"
+              style={{
+                width: 26, height: 26,
+                background: row.done ? 'var(--today-green)' : 'transparent',
+                border: row.done ? 'none' : '1.8px solid var(--today-track)',
+              }}>
+              {row.done && (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff"
+                  strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              )}
+            </span>
+            <span className="flex-grow text-[15px]"
+              style={{ color: 'var(--today-ink)', opacity: row.done ? 0.45 : 1 }}>
+              {row.name}
+            </span>
+            {row.detail && <span className="today-caps flex-shrink-0">{row.detail}</span>}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -535,99 +523,29 @@ function MockLibraryScreen() {
   );
 }
 
-// Mock coach screen for onboarding preview
-function MockCoachScreen() {
-  return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 px-4 pt-16 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
-        <img src="/chat.svg" alt="Coach" className="h-5 dark:invert" />
-      </div>
-
-      {/* Chat messages */}
-      <div className="flex-1 space-y-4">
-        {/* User message */}
-        <div className="flex justify-end">
-          <div className="max-w-[80%] p-3 rounded-2xl rounded-br-md bg-emerald-500 text-white">
-            <p className="text-sm">What's the proper form for a deadlift?</p>
-          </div>
-        </div>
-
-        {/* Assistant message */}
-        <div className="flex justify-start">
-          <div className="max-w-[80%] p-3 rounded-2xl rounded-bl-md bg-white dark:bg-slate-800">
-            <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
-              Great question! Here are the key points for proper deadlift form:
-            </p>
-            <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 ml-4">
-              <li>• Keep your back straight and core tight</li>
-              <li>• Feet shoulder-width apart</li>
-              <li>• Grip the bar just outside your legs</li>
-              <li>• Drive through your heels</li>
-            </ul>
-          </div>
-        </div>
-
-        {/* User follow-up */}
-        <div className="flex justify-end">
-          <div className="max-w-[80%] p-3 rounded-2xl rounded-br-md bg-emerald-500 text-white">
-            <p className="text-sm">Can you add deadlifts to my exercise library?</p>
-          </div>
-        </div>
-
-        {/* Assistant response */}
-        <div className="flex justify-start">
-          <div className="max-w-[80%] p-3 rounded-2xl rounded-bl-md bg-white dark:bg-slate-800">
-            <p className="text-sm text-slate-700 dark:text-slate-300">
-              Done! I've added "Deadlift" to your custom exercises. You can find it in your Library under Exercises.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Input area */}
-      <div className="mt-4 mb-24 flex gap-2">
-        <div className="flex-1 p-3 rounded-xl bg-white dark:bg-slate-800 text-slate-400 text-sm">
-          Ask about exercises, form, or workouts...
-        </div>
-        <div className="w-11 h-11 rounded-xl bg-emerald-500 flex items-center justify-center">
-          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Nav icons for highlighting
 function NavIcon({ name, active }: { name: string; active: boolean }) {
   const color = active ? 'text-emerald-400' : 'text-slate-400';
 
+  // Paths match src/components/NavBar.tsx. If one changes there, change it here.
   switch (name) {
-    case 'home':
+    case 'today':
       return (
         <svg className={`w-6 h-6 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          <circle cx="12" cy="12" r="9" strokeWidth={2} />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7.5V12l3 2" />
         </svg>
       );
     case 'workout':
       return (
         <svg className={`w-6 h-6 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.5 6.5v11M4 9v6M17.5 6.5v11M20 9v6M6.5 12h11" />
         </svg>
       );
     case 'library':
       return (
         <svg className={`w-6 h-6 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-      );
-    case 'coach':
-      return (
-        <svg className={`w-6 h-6 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
         </svg>
       );
     case 'settings':
