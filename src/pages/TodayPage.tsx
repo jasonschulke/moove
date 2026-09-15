@@ -92,16 +92,24 @@ export function TodayPage({ activeWorkout }: TodayPageProps = {}) {
           <HabitList statuses={view.statuses} dateStr={view.dateStr} onChange={refresh} />
         </section>
 
-        <div className="px-4 pt-5">
-          <button onClick={handleToggleRest}
-            className="w-full h-11 rounded-[13px] text-[13px] font-medium transition-colors"
-            style={{
-              background: view.isRest ? 'var(--mv-ink)' : 'transparent',
-              color: view.isRest ? 'var(--mv-paper)' : 'var(--mv-muted)',
-              border: view.isRest ? 'none' : '1.5px solid var(--mv-hairline)',
-            }}>
-            {view.isRest ? 'Resting today' : 'Make today a rest day'}
-          </button>
+        {/* A once-in-a-while decision, sized like one. As a full-width bordered
+            button it carried the same weight as a habit you owe every day.
+            Resting keeps the filled pill, because that state has to be
+            unmistakable. */}
+        <div className="px-4 pt-4 flex justify-center">
+          {view.isRest ? (
+            <button onClick={handleToggleRest}
+              className="h-9 px-4 rounded-full text-[12.5px] font-medium transition-colors"
+              style={{ background: 'var(--mv-ink)', color: 'var(--mv-paper)' }}>
+              Resting today
+            </button>
+          ) : (
+            <button onClick={handleToggleRest}
+              className="h-11 px-3 text-[12.5px] transition-colors"
+              style={{ color: 'var(--mv-faint)' }}>
+              Make today a rest day
+            </button>
+          )}
         </div>
 
       </div>

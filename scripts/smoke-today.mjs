@@ -120,8 +120,8 @@ await page.getByRole('button', { name: 'Save Weight' }).click();
 await page.waitForTimeout(500);
 const weighed = await ring().getAttribute('aria-label');
 check('confirming a reading checks the habit off', weighed === '3 of 4 done today', weighed ?? '(missing)');
-check('the row reports the reading',
-  await page.getByText('182.4 lb').isVisible().catch(() => false));
+check('the row reports the reading and nothing else',
+  await page.getByText('182.4 lb', { exact: true }).isVisible().catch(() => false));
 // body_metrics is the store that syncs and that Health imports write to.
 // A second home for the same number would disagree with it inside a day.
 check('the reading goes to body metrics, not the habit log',
@@ -141,6 +141,13 @@ const afterLift = await ring().getAttribute('aria-label');
 check('a weekly habit counts toward the day it is done',
   afterLift === '4 of 5 done today', `${beforeLift} -> ${afterLift}`);
 check('Lift debt updates on its row', await page.getByText('1 of 3 this week').isVisible().catch(() => false));
+// Run is owed once a week. Once it is met the row stops counting at you.
+await page.getByRole('button', { name: /^Run\b/ }).first().click();
+await page.waitForTimeout(500);
+check('a weekly habit that is met says so instead of counting',
+  await page.getByText('Done this week').isVisible().catch(() => false));
+await page.getByRole('button', { name: /^Run\b/ }).first().click();
+await page.waitForTimeout(500);
 
 // Playwright refuses to click an obscured control, so this also proves the
 // bottom padding clears the nav's floating Workout button.

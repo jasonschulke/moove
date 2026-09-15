@@ -85,23 +85,31 @@ function HabitRow({ status, open, onPress, onSave, onCancel, onClear }: {
 }) {
   const { habit, done, owed, perWeek, doneThisWeek, value } = status;
 
-  // A measured habit reports its reading, and its goal alongside when it has
-  // one. Weekly habits carry their debt. Plain daily ones say nothing extra;
-  // the ring already speaks for them.
-  const reading = !habit.unit ? null
-    : value !== null && habit.target !== undefined ? `${value} / ${habit.target} ${habit.unit}`
-    : value !== null ? `${value} ${habit.unit}`
-    : habit.target !== undefined ? `Goal ${habit.target} ${habit.unit}`
-    : null;
-  const detail = perWeek > 0 ? `${doneThisWeek} of ${perWeek} this week` : null;
+  // A measured habit reports its reading, and only its reading: "245 / 200 lb"
+  // read as 245 out of 200, which is not what a goal you are coming down to
+  // means. The goal lives on the chart, where a direction makes sense.
+  const reading = habit.unit && value !== null ? `${value} ${habit.unit}` : null;
+
+  // A weekly habit that has met its count stops counting at you. Plain daily
+  // ones say nothing extra; the ring already speaks for them.
+  const settled = perWeek > 0 && owed === 0;
+  const detail = perWeek === 0 ? null
+    : settled ? 'Done this week'
+    : `${doneThisWeek} of ${perWeek} this week`;
+
+  // Finished rows step back so the one thing still open is the thing you see.
+  // They keep their place rather than moving, because a list that reorders
+  // under your thumb is a list that gets mis-tapped.
+  const quiet = done || settled;
 
   return (
-    <div className="mv-card">
+    <div className="mv-card" style={quiet ? { boxShadow: 'none' } : undefined}>
       <button
         onClick={onPress}
         aria-pressed={done}
         aria-expanded={habit.unit ? open : undefined}
         className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:scale-[0.99] transition-transform"
+        style={{ opacity: quiet ? 0.62 : 1 }}
       >
         <span className="flex items-center justify-center flex-shrink-0 rounded-full transition-colors"
           style={{
@@ -112,14 +120,9 @@ function HabitRow({ status, open, onPress, onSave, onCancel, onClear }: {
           {done && <CheckMark />}
         </span>
 
-        <HabitIcon
-          icon={habit.icon}
-          size={20}
-          style={{ color: habitColor(habit), opacity: done ? 0.45 : 1 }}
-        />
+        <HabitIcon icon={habit.icon} size={20} style={{ color: habitColor(habit) }} />
 
-        <span className="flex-grow min-w-0 text-[15px]"
-          style={{ color: 'var(--mv-ink)', opacity: done ? 0.45 : 1 }}>
+        <span className="flex-grow min-w-0 text-[15px]" style={{ color: 'var(--mv-ink)' }}>
           {habit.name}
         </span>
 
@@ -130,7 +133,7 @@ function HabitRow({ status, open, onPress, onSave, onCancel, onClear }: {
           </span>
         ) : detail ? (
           <span className="mv-caps flex-shrink-0"
-            style={{ color: owed > 0 ? 'var(--mv-ink)' : 'var(--mv-muted)' }}>
+            style={{ color: settled ? 'var(--mv-muted)' : 'var(--mv-ink)' }}>
             {detail}
           </span>
         ) : null}

@@ -156,15 +156,15 @@ check('the list shows the goal and nothing about recording',
   (await page.getByText(/Records/).count()) === 0);
 
 await openToday();
-check('the row states the goal before anything is logged',
-  await page.getByText('Goal 64 oz').isVisible().catch(() => false));
+check('an unlogged row says nothing about the goal',
+  (await page.getByText(/Goal .*oz/).count()) === 0);
 await page.getByRole('button', { name: /^Water\b/ }).first().click();
 await page.waitForTimeout(400);
 await page.getByLabel('Water in oz').fill('48');
 await page.getByRole('button', { name: 'Save Water' }).click();
 await page.waitForTimeout(500);
-check('the row shows progress against the goal',
-  await page.getByText('48 / 64 oz').isVisible().catch(() => false));
+check('the row shows the reading, not a fraction of the goal',
+  await page.getByText('48 oz', { exact: true }).isVisible().catch(() => false));
 // Taking the reading is the task. A goal months out must not hold the day open.
 const short = await ring().getAttribute('aria-label');
 check('a reading short of the goal still closes the habit',
