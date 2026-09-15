@@ -1,0 +1,103 @@
+/**
+ * Boots the built app in Chromium and checks the Today screen behaves.
+ *
+ *   npm run build
+ *   npx vite preview --port 4173 &
+ *   node scripts/smoke-today.mjs
+ *
+ * SMOKE_URL overrides the address; CHROME_PATH overrides the browser binary
+ * (needed in sandboxes that ship their own Chromium).
+ */
+import { chromium } from 'playwright';
+
+const BASE = process.env.SMOKE_URL ?? 'http://localhost:4173';
+const results = [];
+const check = (name, pass, detail = '') => {
+  results.push({ name, pass });
+  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -- ' + detail : ''}`);
+};
+
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const pageErrors = [];
+page.on('pageerror', e => pageErrors.push(String(e)));
+
+const ring = () => page.locator('[role="img"][aria-label$="done today"]').first();
+const settle = () => page.waitForTimeout(2600); // 2s splash, then render
+
+await page.goto(BASE, { waitUntil: 'networkidle' });
+await page.evaluate(() => {
+  localStorage.clear();
+  localStorage.setItem('workout_onboarding_complete', 'true');
+});
+await page.reload({ waitUntil: 'networkidle' });
+await settle();
+
+check('Today is the landing tab', await ring().isVisible().catch(() => false));
+
+// The held dry day means an untouched day starts at 1 of 3.
+const start = await ring().getAttribute('aria-label').catch(() => null);
+check('ring starts at 1 of 3', start === '1 of 3 done today', start ?? '(missing)');
+
+check('the suggestion carries a reason line',
+  await page.getByText(/left, \d days|Every remaining day|Last day of the week/).first()
+    .isVisible().catch(() => false));
+
+await page.getByRole('button', { name: 'Walk', exact: true }).click();
+await page.waitForTimeout(500);
+const after = await ring().getAttribute('aria-label');
+check('logging Walk advances the ring', after === '2 of 3 done today', after ?? '(missing)');
+
+await page.reload({ waitUntil: 'networkidle' });
+await settle();
+const persisted = await ring().getAttribute('aria-label');
+check('the log survives a reload', persisted === '2 of 3 done today', persisted ?? '(missing)');
+
+// Breaking the held dry day takes the score back down.
+await page.getByRole('button', { name: 'Dry day', exact: true }).click();
+await page.waitForTimeout(500);
+const broken = await ring().getAttribute('aria-label');
+check('breaking the dry day lowers the ring', broken === '1 of 3 done today', broken ?? '(missing)');
+
+// A weekly habit is debt, not day score. Its row carries its own count.
+// Weekly rows include that count in their accessible name, so match on a prefix.
+const beforeLift = await ring().getAttribute('aria-label');
+await page.getByRole('button', { name: /^Lift\b/ }).first().click();
+await page.waitForTimeout(500);
+const afterLift = await ring().getAttribute('aria-label');
+check('logging Lift leaves the ring alone', afterLift === beforeLift, `${beforeLift} -> ${afterLift}`);
+check('Lift debt updates on its row', await page.getByText('1 of 3 this week').isVisible().catch(() => false));
+
+// Playwright refuses to click an obscured control, so this also proves the
+// bottom padding clears the nav's floating Workout button.
+await page.getByRole('button', { name: 'Make today a rest day' }).click();
+await page.waitForTimeout(500);
+check('rest day can be set', await page.getByText('Nothing owed.').isVisible().catch(() => false));
+check('the suggestion goes quiet on a rest day',
+  !(await page.getByText(/left, \d days|Every remaining day/).first().isVisible().catch(() => false)));
+const restRing = await ring().getAttribute('aria-label');
+check('a rest day still scores the daily habits', restRing === '1 of 3 done today', restRing ?? '(missing)');
+await page.getByRole('button', { name: 'Resting today' }).click();
+await page.waitForTimeout(500);
+check('rest day can be cleared', await page.getByText('Next').first().isVisible().catch(() => false));
+
+// Nothing that already worked may break.
+for (const tab of ['Home', 'Library', 'Coach', 'Settings']) {
+  const before = pageErrors.length;
+  await page.getByRole('button', { name: tab, exact: true }).click();
+  await page.waitForTimeout(900);
+  check(`${tab} tab still opens`, pageErrors.length === before, pageErrors.slice(before).join(' | '));
+}
+
+await page.getByRole('button', { name: 'Today', exact: true }).click();
+await page.waitForTimeout(600);
+check('Today survives a round trip through the old tabs', await ring().isVisible().catch(() => false));
+
+check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '));
+
+await page.screenshot({ path: 'today-screen.png', fullPage: true });
+await browser.close();
+
+const failed = results.filter(r => !r.pass).length;
+console.log(`\n${results.length - failed}/${results.length} passed`);
+process.exit(failed === 0 ? 0 : 1);
