@@ -11,36 +11,18 @@ import { CARDIO_TYPE_LABELS } from '../types';
 import { saveCurrentSession, loadCurrentSession, addCompletedSession } from '../data/storage';
 import { generateUUID } from '../utils/uuid';
 
-/** Extended session interface with navigation state for persistence */
-interface ExtendedSession extends WorkoutSession {
-  currentBlockIndex?: number;
-  currentExerciseIndex?: number;
-  swappedExercises?: Record<string, string>;
-}
-
 export function useWorkout() {
-  const [session, setSession] = useState<ExtendedSession | null>(() => {
-    const loaded = loadCurrentSession() as ExtendedSession | null;
-    return loaded;
-  });
-  const [currentBlockIndex, setCurrentBlockIndex] = useState(() => {
-    const loaded = loadCurrentSession() as ExtendedSession | null;
-    return loaded?.currentBlockIndex ?? 0;
-  });
-  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(() => {
-    const loaded = loadCurrentSession() as ExtendedSession | null;
-    return loaded?.currentExerciseIndex ?? 0;
-  });
+  // One read of localStorage, not three. The stored session carries its own
+  // navigation state, which is what lets an interrupted workout resume.
+  const [restored] = useState(() => loadCurrentSession());
+  const [session, setSession] = useState<WorkoutSession | null>(restored);
+  const [currentBlockIndex, setCurrentBlockIndex] = useState(restored?.currentBlockIndex ?? 0);
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(restored?.currentExerciseIndex ?? 0);
 
-  // Save session with navigation state
+  // Persist the session together with where the user is inside it.
   useEffect(() => {
     if (session) {
-      const extendedSession: ExtendedSession = {
-        ...session,
-        currentBlockIndex,
-        currentExerciseIndex,
-      };
-      saveCurrentSession(extendedSession);
+      saveCurrentSession({ ...session, currentBlockIndex, currentExerciseIndex });
     } else {
       saveCurrentSession(null);
     }
@@ -74,8 +56,6 @@ export function useWorkout() {
   }, []);
 
   const logExercise = useCallback((log: Omit<ExerciseLog, 'completedAt'>) => {
-    if (!session) return;
-
     const exerciseLog: ExerciseLog = {
       ...log,
       completedAt: new Date().toISOString(),
@@ -85,7 +65,7 @@ export function useWorkout() {
       ...prev,
       exercises: [...prev.exercises, exerciseLog],
     } : null);
-  }, [session]);
+  }, []);
 
   const nextExercise = useCallback((totalExercisesInBlock: number, totalBlocks: number) => {
     if (currentExerciseIndex < totalExercisesInBlock - 1) {
@@ -109,8 +89,20 @@ export function useWorkout() {
   const completeWorkout = useCallback((overallEffort?: EffortLevel, distance?: number) => {
     if (!session) return;
 
+    // Navigation state describes an in-progress workout. It has no business in
+    // the permanent history record, so it is dropped here.
+    const {
+      currentBlockIndex: _blockIndex,
+      currentExerciseIndex: _exerciseIndex,
+      swappedExercises: _swapped,
+      ...sessionRecord
+    } = session;
+    void _blockIndex;
+    void _exerciseIndex;
+    void _swapped;
+
     const completedSession: WorkoutSession = {
-      ...session,
+      ...sessionRecord,
       completedAt: new Date().toISOString(),
       totalDuration: Math.round((Date.now() - new Date(session.startedAt).getTime()) / 1000),
       overallEffort,
@@ -130,20 +122,14 @@ export function useWorkout() {
     saveCurrentSession(null);
   }, []);
 
-  // Update swapped exercises in session for persistence
+  /** Persist mid-workout exercise substitutions so they survive a reload. */
   const updateSwappedExercises = useCallback((swapped: Record<string, string>) => {
-    setSession(prev => prev ? {
-      ...prev,
-      swappedExercises: swapped,
-    } : null);
+    setSession(prev => prev ? { ...prev, swappedExercises: swapped } : null);
   }, []);
 
-  // Update session blocks (for mid-workout editing)
+  /** Persist mid-workout edits to the block structure. */
   const updateSessionBlocks = useCallback((blocks: WorkoutBlock[]) => {
-    setSession(prev => prev ? {
-      ...prev,
-      blocks,
-    } : null);
+    setSession(prev => prev ? { ...prev, blocks } : null);
   }, []);
 
   return {

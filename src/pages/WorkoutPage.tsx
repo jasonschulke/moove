@@ -9,15 +9,8 @@ import { getExerciseById, getAllExercises } from '../data/exercises';
 import { incrementSkipCount, incrementSwapCount } from '../data/storage';
 import { useLandscape } from '../hooks/useLandscape';
 
-// Extended session type with persisted state
-interface ExtendedSession extends WorkoutSession {
-  currentBlockIndex?: number;
-  currentExerciseIndex?: number;
-  swappedExercises?: Record<string, string>;
-}
-
 interface WorkoutPageProps {
-  session: ExtendedSession | null;
+  session: WorkoutSession | null;
   currentBlockIndex: number;
   currentExerciseIndex: number;
   onLogExercise: (log: {
