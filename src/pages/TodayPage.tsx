@@ -12,6 +12,7 @@ import { toggleRestDay } from '../data/storage';
 import { say } from '../data/voice';
 import { CompletionRing } from '../components/CompletionRing';
 import { HabitList } from '../components/HabitList';
+import { WeekStrip } from '../components/WeekStrip';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -88,7 +89,11 @@ export function TodayPage({ activeWorkout }: TodayPageProps = {}) {
           </div>
         </section>
 
-        <section className="px-4 pt-5 mv-rise">
+        <section className="px-4 pt-4 mv-rise">
+          <WeekStrip now={now} />
+        </section>
+
+        <section className="px-4 pt-4 mv-rise">
           <HabitList statuses={view.statuses} dateStr={view.dateStr} onChange={refresh} />
         </section>
 

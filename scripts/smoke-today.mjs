@@ -88,12 +88,26 @@ check('the date sits in the Today card, not the header',
 const start = await ring().getAttribute('aria-label').catch(() => null);
 check('ring starts at 0 of 4', start === '0 of 4 done today', start ?? '(missing)');
 
+// The week lives on Today now, as seven bars Monday to Sunday.
+const strip = page.locator('[aria-label$="percent"]');
+check('the week strip shows seven days', (await strip.count()) === 7, String(await strip.count()));
+check('the strip is labelled',
+  await page.getByText('This week', { exact: true }).isVisible().catch(() => false));
+
+// The ring takes its colour from how much of the day is closed, so a quarter
+// done and a day finished cannot look alike.
+const arcColor = () => page.locator('svg circle').nth(1).evaluate(el => el.getAttribute('stroke'));
+const emptyColor = await arcColor();
+
 check('there is no Next card', !(await page.getByText('Next', { exact: true }).isVisible().catch(() => false)));
 
 await page.getByRole('button', { name: 'Walk', exact: true }).click();
 await page.waitForTimeout(500);
 const after = await ring().getAttribute('aria-label');
 check('logging Walk advances the ring', after === '1 of 4 done today', after ?? '(missing)');
+const quarterColor = await arcColor();
+check('a quarter of a day is red', quarterColor === '#b91c1c', quarterColor ?? '(missing)');
+check('the colour moves with the score', quarterColor !== emptyColor || emptyColor === '#b91c1c');
 
 await page.reload({ waitUntil: 'networkidle' });
 await settle();

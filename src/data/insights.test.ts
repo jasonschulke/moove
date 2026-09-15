@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import {
   dayCompletion, formatWeekRange, weekVerdict,
-  getWeekReview, getMonthCompletion, getYearCompletion, trackingStartedOn,
+  getWeekReview, getWeekDays, getMonthCompletion, getYearCompletion, trackingStartedOn,
 } from './insights';
 import type { HabitBar } from './insights';
 import type { HabitLogMap } from '../types/habits';
@@ -119,6 +119,30 @@ describe('getWeekReview', () => {
 
   it('labels the week Monday to Sunday', () => {
     expect(getWeekReview(wednesday(), {}).rangeLabel).toBe('14–20 September');
+  });
+});
+
+describe('getWeekDays', () => {
+  it('runs Monday to Sunday', () => {
+    const days = getWeekDays(wednesday(), {});
+    expect(days.length).toBe(7);
+    expect(days[0].dateStr).toBe('2026-09-14');
+    expect(days[6].dateStr).toBe('2026-09-20');
+  });
+
+  it('marks today and the days that have not happened', () => {
+    const days = getWeekDays(wednesday(), {});
+    expect(days.filter(d => d.isToday).map(d => d.dateStr)).toEqual(['2026-09-16']);
+    expect(days.filter(d => d.isFuture).map(d => d.dateStr))
+      .toEqual(['2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20']);
+  });
+
+  it('scores the days that have', () => {
+    weighIn('2026-09-15');
+    const logs: HabitLogMap = { '2026-09-15': { walk: true, dog: true, dry: true } };
+    const days = getWeekDays(wednesday(), logs);
+    expect(days.find(d => d.dateStr === '2026-09-15')!.completion).toBe(1);
+    expect(days.find(d => d.dateStr === '2026-09-14')!.completion).toBe(0);
   });
 });
 

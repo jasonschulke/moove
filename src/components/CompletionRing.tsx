@@ -3,7 +3,11 @@
  *
  * A single score rather than per-habit segments, so adding a fourth tracked
  * thing later does not mean redesigning the calendar that reuses this shape.
+ * The arc takes its colour from how much of the day is closed, so a quarter
+ * done and a day finished do not look alike.
  */
+
+import { scoreColor } from '../utils/completionColor';
 
 interface CompletionRingProps {
   completed: number;
@@ -18,6 +22,7 @@ export function CompletionRing({ completed, total, size = 128 }: CompletionRingP
   const circumference = 2 * Math.PI * radius;
   const fraction = total > 0 ? Math.min(1, Math.max(0, completed / total)) : 0;
   const offset = circumference * (1 - fraction);
+  const color = scoreColor(completed, total);
 
   return (
     <div
@@ -30,9 +35,9 @@ export function CompletionRing({ completed, total, size = 128 }: CompletionRingP
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
           stroke="var(--mv-track)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke="var(--mv-green)" strokeWidth={stroke} strokeLinecap="round"
+          stroke={color} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circumference} strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.16, 0.8, 0.3, 1)' }} />
+          style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.16, 0.8, 0.3, 1), stroke 0.4s ease' }} />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <span className="mv-serif leading-none"

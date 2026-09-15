@@ -155,6 +155,34 @@ export function getWeekReview(now: Date = new Date(), logs?: HabitLogMap): WeekR
   };
 }
 
+/**
+ * Monday to Sunday of the containing week, for the strip on Today. Same shape
+ * as the month, so the two read as the same thing at different zooms.
+ */
+export function getWeekDays(now: Date = new Date(), logs?: HabitLogMap): DayCompletion[] {
+  const log = logs ?? loadHabitLogs();
+  const todayStr = formatLocalDate(now);
+  const started = trackingStartedOn(log);
+  const out: DayCompletion[] = [];
+
+  const end = endOfWeek(now);
+  for (const d = new Date(startOfWeek(now)); d < end; d.setDate(d.getDate() + 1)) {
+    const dateStr = formatLocalDate(d);
+    const isFuture = dateStr > todayStr;
+    const isUntracked = started === null || dateStr < started;
+    out.push({
+      dateStr,
+      dayOfMonth: d.getDate(),
+      completion: isFuture || isUntracked ? 0 : dayCompletion(dateStr, log),
+      isRest: isRestDay(dateStr),
+      isToday: dateStr === todayStr,
+      isFuture,
+      isUntracked,
+    });
+  }
+  return out;
+}
+
 /** Every day of the containing calendar month, in order. */
 export function getMonthCompletion(now: Date = new Date(), logs?: HabitLogMap): DayCompletion[] {
   const log = logs ?? loadHabitLogs();
