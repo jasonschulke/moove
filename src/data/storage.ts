@@ -474,15 +474,20 @@ export function deleteCustomExercise(id: string): void {
 // CLAUDE AI CHAT
 // ============================================================================
 
-// Fallback API key (base64 encoded + reversed for basic obfuscation)
-const _k = () => atob('QUFBXzlkeDUtQWo5ZTdWUTBsNmNGTjhkVGk2NFJuZ2lDN2hKc2ZHZmhSMm1qVXRacW9heHlSWlA1YWJxWHdzeE14dzVFRGJROUdoRFdDQ2FtX1pMcUJxN1ZXOFRFTEwtMzBpcGEtdG5hLWtz').split('').reverse().join('');
-
+/**
+ * The user's own Anthropic API key, or null if they have not set one.
+ *
+ * There was previously an embedded fallback key here, base64-encoded and
+ * reversed. That is an encoding, not a secret: it shipped in the browser
+ * bundle and was recoverable by anyone who opened the deployed site. It has
+ * been removed and the key it contained should be treated as compromised.
+ *
+ * Nothing should reintroduce a key here. Anything that needs to call the
+ * Anthropic API without the user supplying their own key belongs behind a
+ * server-side proxy where the secret never reaches the client.
+ */
 export function getClaudeApiKey(): string | null {
-  // User's own key takes priority
-  const userKey = localStorage.getItem(CLAUDE_API_KEY);
-  if (userKey) return userKey;
-  // Fallback to embedded key
-  return _k();
+  return localStorage.getItem(CLAUDE_API_KEY);
 }
 
 export function setClaudeApiKey(key: string): void {
