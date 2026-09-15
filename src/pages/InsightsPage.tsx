@@ -121,46 +121,114 @@ function MonthPanel({ now }: { now: Date }) {
   );
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Cell and gap in px. Columns are weeks, so the pitch is cell + gap. */
+const YEAR_CELL = 13;
+const YEAR_GAP = 3;
+const YEAR_PITCH = YEAR_CELL + YEAR_GAP;
+
 function YearPanel({ now }: { now: Date }) {
   const days = useMemo(() => getYearCompletion(now), [now]);
 
   // Columns are weeks, Monday at the top, so the grid reads like a calendar.
-  const columns: DayCompletion[][] = [];
-  let column: DayCompletion[] = [];
+  const columns: (DayCompletion | null)[][] = [];
+  let column: (DayCompletion | null)[] = [];
   const lead = (new Date(now.getFullYear(), 0, 1).getDay() + 6) % 7;
-  for (let i = 0; i < lead; i++) column.push(null as unknown as DayCompletion);
+  for (let i = 0; i < lead; i++) column.push(null);
   for (const day of days) {
     column.push(day);
     if (column.length === 7) { columns.push(column); column = []; }
   }
-  if (column.length) columns.push(column);
+  if (column.length) {
+    while (column.length < 7) column.push(null);
+    columns.push(column);
+  }
+
+  // A month's label sits over the first column that contains its first week.
+  const monthStarts = new Map<number, number>();
+  columns.forEach((col, i) => {
+    for (const day of col) {
+      if (!day) continue;
+      const month = new Date(day.dateStr + 'T00:00:00').getMonth();
+      if (!monthStarts.has(month)) monthStarts.set(month, i);
+      break;
+    }
+  });
 
   const shade = (d: DayCompletion | null) => {
     if (!d || d.isFuture || d.isUntracked) return 'var(--mv-empty)';
-    if (d.completion === 0) return TRACK;
-    if (d.isRest) return VIOLET;
+    if (d.completion === 0) return 'var(--mv-track)';
+    if (d.isRest) return 'var(--mv-violet)';
     // Three steps, matching the three daily habits.
     if (d.completion >= 1) return GREEN;
     if (d.completion >= 0.66) return 'var(--mv-green-2)';
     return 'var(--mv-green-1)';
   };
 
+  const swatch = (background: string, key: string) => (
+    <span key={key} className="inline-block rounded-[3px]"
+      style={{ width: 11, height: 11, background }} />
+  );
+
   return (
     <>
       <div className="mv-caps mx-1 mb-2">{now.getFullYear()}</div>
       <div className="mv-card p-4">
-        <div className="flex gap-[2px] justify-center">
-          {columns.map((col, ci) => (
-            <div key={ci} className="flex flex-col gap-[2px]">
-              {col.map((d, di) => (
-                <div
-                  key={di}
-                                    style={{ width: 4, height: 30, borderRadius: 2, background: shade(d) }}
-                  title={d ? `${d.dateStr}: ${Math.round(d.completion * 100)}%` : ''}
-                />
+        {/* Fifty-three columns of readable squares are wider than a phone, so
+            the grid scrolls sideways. Squashing them to fit is what made this
+            a barcode. */}
+        <div className="overflow-x-auto -mx-1 px-1">
+          <div style={{ width: columns.length * YEAR_PITCH }}>
+            <div className="relative h-4 mb-1">
+              {[...monthStarts.entries()].map(([month, col]) => (
+                <span
+                  key={month}
+                  className="absolute top-0 text-[10px] whitespace-nowrap"
+                  style={{ left: col * YEAR_PITCH, color: 'var(--mv-faint)' }}
+                >
+                  {MONTH_ABBR[month]}
+                </span>
               ))}
             </div>
-          ))}
+            <div className="flex" style={{ gap: YEAR_GAP }}>
+              {columns.map((col, ci) => (
+                <div key={ci} className="flex flex-col" style={{ gap: YEAR_GAP }}>
+                  {col.map((d, di) => (
+                    <div
+                      key={di}
+                      className="rounded-[3px]"
+                      style={{ width: YEAR_CELL, height: YEAR_CELL, background: shade(d) }}
+                      title={d ? `${d.dateStr}: ${Math.round(d.completion * 100)}%` : ''}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Small and lower case: a key should sit under the picture, not
+            compete with it. */}
+        <div className="flex items-center gap-3 mt-3 flex-wrap text-[10px]"
+          style={{ color: 'var(--mv-faint)' }}>
+          <span className="flex items-center gap-1">
+            Less
+            {swatch('var(--mv-track)', 'l0')}
+            {swatch('var(--mv-green-1)', 'l1')}
+            {swatch('var(--mv-green-2)', 'l2')}
+            {swatch(GREEN, 'l3')}
+            More
+          </span>
+          <span className="flex items-center gap-1">
+            {swatch('var(--mv-violet)', 'rest')}
+            Rest
+          </span>
+          <span className="flex items-center gap-1">
+            {swatch('var(--mv-empty)', 'empty')}
+            Untracked
+          </span>
         </div>
       </div>
     </>
@@ -302,30 +370,28 @@ export function InsightsPage() {
   return (
     <div className="mv-paper min-h-screen pb-40">
       <div className="max-w-lg mx-auto">
-        <ScreenHeader
-          label="Insights"
-          alt="Insights"
-          trailing={
-            <div className="flex gap-4 flex-shrink-0">
-              {(['week', 'month', 'year'] as Range[]).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className="mv-caps pb-0.5"
-                  style={
-                    range === r
-                      ? { color: 'var(--mv-ink)', borderBottom: '2px solid var(--mv-ink)' }
-                      : undefined
-                  }
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          }
-        />
+        <ScreenHeader label="Insights" alt="Insights" />
 
-        <section className="px-4 pt-6 mv-rise">
+        {/* The same segmented control Library uses for its tabs. */}
+        <div className="px-4 mt-4">
+          <div className="flex rounded-xl bg-slate-200 dark:bg-slate-800 p-1">
+            {(['week', 'month', 'year'] as Range[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`flex-1 py-2.5 px-1 rounded-lg text-[12.5px] font-medium capitalize transition-colors ${
+                  range === r
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className="px-4 pt-5 mv-rise">
           {range === 'week' && <WeekPanel now={now} />}
           {range === 'month' && <MonthPanel now={now} />}
           {range === 'year' && <YearPanel now={now} />}
