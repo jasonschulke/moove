@@ -9,7 +9,7 @@
 
 import type { Habit, HabitCadence, HabitLogMap } from '../types/habits';
 import { startOfWeek, endOfWeek } from '../utils/week';
-import { formatLocalDate } from './storage';
+import { formatLocalDate, loadBodyMetrics, recordWeight, removeWeight, BODY_METRICS_KEY } from './storage';
 import { generateUUID } from '../utils/uuid';
 
 const HABIT_LOGS_KEY = 'habit_logs';
@@ -24,6 +24,7 @@ export const DEFAULT_HABITS: Habit[] = [
   { id: 'dry',  name: 'Dry day',      cadence: { kind: 'daily-quota', perWeek: 5 }, heldByDefault: false, icon: 'no_drinks',       color: 'plum',   order: 2 },
   { id: 'lift', name: 'Lift',         cadence: { kind: 'weekly', perWeek: 3 },      heldByDefault: false, icon: 'fitness_center',  color: 'rust',   order: 3 },
   { id: 'run',  name: 'Run',          cadence: { kind: 'weekly', perWeek: 1 },      heldByDefault: false, icon: 'directions_run',  color: 'indigo', order: 4 },
+  { id: 'weight', name: 'Weight',     cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'monitor_weight',  color: 'rose',   unit: 'lb', source: 'bodyWeight', order: 5 },
 ];
 
 /**
@@ -88,13 +89,22 @@ export const HABIT_ICONS: string[] = HABIT_ICON_GROUPS.flatMap(g => g.icons);
  * Seeded once with the five defaults, then owned by the user. The seeded flag
  * means deleting them all does not bring them back on the next load.
  */
+let habitCache: { raw: string | null; habits: Habit[] } | null = null;
+
 export function loadHabits(): Habit[] {
   try {
     const raw = localStorage.getItem(HABIT_DEFS_KEY);
     if (raw) {
+      // The year grid asks about 365 days and every day asks about every
+      // habit, so parsing this on each question is thousands of parses for one
+      // screen. The raw string is the cache key, which means any write through
+      // saveHabits invalidates it without anyone having to remember to.
+      if (habitCache && habitCache.raw === raw) return habitCache.habits.slice();
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return migrateHeldDefault((parsed as Habit[]).slice().sort((a, b) => a.order - b.order));
+        const habits = migrateHeldDefault((parsed as Habit[]).slice().sort((a, b) => a.order - b.order));
+        habitCache = { raw, habits };
+        return habits.slice();
       }
     }
   } catch {
@@ -129,7 +139,7 @@ export function saveHabits(habits: Habit[]): void {
   localStorage.setItem(HABITS_SEEDED_KEY, 'true');
 }
 
-export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean; icon?: string; color?: string }): Habit {
+export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean; icon?: string; color?: string; unit?: string }): Habit {
   const habits = loadHabits();
   const habit: Habit = { id: generateUUID(), order: habits.length, ...input };
   saveHabits([...habits, habit]);
@@ -203,16 +213,58 @@ export function saveHabitLogs(logs: HabitLogMap): void {
 }
 
 /**
+ * Body weight by date. Same trick as the habit cache above: the year grid
+ * would otherwise parse this list once per day drawn.
+ */
+let weightCache: { raw: string | null; byDate: Map<string, number> } | null = null;
+
+function weightByDate(): Map<string, number> {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(BODY_METRICS_KEY);
+  } catch {
+    return new Map();
+  }
+  if (weightCache && weightCache.raw === raw) return weightCache.byDate;
+  const byDate = new Map<string, number>();
+  for (const m of loadBodyMetrics()) {
+    if (typeof m.weight === 'number') byDate.set(m.date, m.weight);
+  }
+  weightCache = { raw, byDate };
+  return byDate;
+}
+
+/**
  * Whether a habit counts as done on a date. An absent entry means the habit's
  * default, which is true only for inverted habits like the dry day.
  */
 export function isHabitDone(habit: Habit, dateStr: string, logs: HabitLogMap): boolean {
+  if (habit.source === 'bodyWeight') return weightByDate().has(dateStr);
   const explicit = logs[dateStr]?.[habit.id];
-  return explicit === undefined ? habit.heldByDefault : explicit;
+  if (explicit === undefined) return habit.heldByDefault;
+  // A measured habit is done by virtue of having a number at all.
+  return typeof explicit === 'number' ? true : explicit;
+}
+
+/** The number logged for a measured habit on a date, if there is one. */
+export function habitValue(habit: Habit, dateStr: string, logs: HabitLogMap): number | null {
+  if (habit.source === 'bodyWeight') return weightByDate().get(dateStr) ?? null;
+  const entry = logs[dateStr]?.[habit.id];
+  return typeof entry === 'number' ? entry : null;
 }
 
 /** Write one habit's state for one date. Returns the updated map. */
-export function setHabitDone(habitId: string, dateStr: string, done: boolean): HabitLogMap {
+export function setHabitDone(habitId: string, dateStr: string, done: boolean | number): HabitLogMap {
+  const habit = loadHabits().find(h => h.id === habitId);
+
+  if (habit?.source === 'bodyWeight') {
+    // The number is the record. Ticking one of these without a reading is not
+    // a thing you can do, so only clearing goes through here.
+    if (typeof done === 'number') recordWeight(done, dateStr);
+    else if (done === false) removeWeight(dateStr);
+    return loadHabitLogs();
+  }
+
   const logs = loadHabitLogs();
   const next: HabitLogMap = { ...logs, [dateStr]: { ...(logs[dateStr] ?? {}), [habitId]: done } };
   saveHabitLogs(next);
@@ -223,6 +275,54 @@ export function setHabitDone(habitId: string, dateStr: string, done: boolean): H
 export function toggleHabit(habit: Habit, dateStr: string): HabitLogMap {
   const current = isHabitDone(habit, dateStr, loadHabitLogs());
   return setHabitDone(habit.id, dateStr, !current);
+}
+
+/**
+ * Record a number against a measured habit, which also marks it done.
+ * Rejects anything that is not a sane reading, because one bad point is
+ * permanent in a chart.
+ */
+export function recordHabitValue(habitId: string, dateStr: string, value: number): HabitLogMap | null {
+  if (!Number.isFinite(value) || value <= 0 || value > 100000) return null;
+  return setHabitDone(habitId, dateStr, Math.round(value * 10) / 10);
+}
+
+/**
+ * The earliest date a measured habit was logged by hand, outside the habit log.
+ *
+ * Only by hand. A Health import can carry years of weigh-ins, and treating
+ * those as the day tracking began would fill the year grid with months scored
+ * near zero for habits that did not exist yet. An import is history; a reading
+ * you entered yourself is tracking.
+ */
+export function earliestMeasuredDate(): string | null {
+  if (!loadHabits().some(h => h.source === 'bodyWeight')) return null;
+  const dates = loadBodyMetrics()
+    .filter(m => typeof m.weight === 'number' && m.source === 'manual')
+    .map(m => m.date)
+    .sort();
+  return dates[0] ?? null;
+}
+
+/**
+ * The day's score, as a fraction.
+ *
+ * Daily habits are the base. A weekly habit joins both halves on the days it
+ * is actually done: lift today and the day reads 4 of 4 rather than 3 of 3,
+ * skip it and it is 3 of 3 again. So a weekly habit can only ever add to a
+ * day, never dilute it, which is right because its cadence is the week. The
+ * alternative, a fixed slot every day, would mark four days a week failed for
+ * a habit you are meeting in full.
+ */
+export function dayScore(dateStr: string, logs: HabitLogMap): { completed: number; total: number } {
+  const habits = loadHabits();
+  const daily = habits.filter(h => h.cadence.kind !== 'weekly');
+  const weeklyDone = habits.filter(
+    h => h.cadence.kind === 'weekly' && isHabitDone(h, dateStr, logs)).length;
+  return {
+    completed: daily.filter(h => isHabitDone(h, dateStr, logs)).length + weeklyDone,
+    total: daily.length + weeklyDone,
+  };
 }
 
 /**

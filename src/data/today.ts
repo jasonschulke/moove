@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { loadHabits, dailyHabits, weeklyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
+import { loadHabits, dailyHabits, weeklyHabits, isHabitDone, habitValue, countDoneInWeek, loadHabitLogs, dayScore } from './habits';
 import { daysLeftInWeek } from '../utils/week';
 import { formatLocalDate, isRestDay } from './storage';
 import type { Situation } from './voice';
@@ -21,6 +21,8 @@ export interface HabitStatus {
   /** The weekly target, or 0 for a plain daily habit. */
   perWeek: number;
   doneThisWeek: number;
+  /** The number logged today, for a habit that carries a unit. */
+  value: number | null;
 }
 
 export interface Suggestion {
@@ -41,9 +43,9 @@ export interface TodayView {
   dateStr: string;
   dayOfMonth: number;
   isRest: boolean;
-  /** Daily habits done today. */
+  /** Things done today: every daily habit, plus any weekly one you did. */
   completed: number;
-  /** Always 3. Daily habits only, so the denominator never moves. */
+  /** Daily habits, plus any weekly one done today. See dayScore. */
   total: number;
   statuses: HabitStatus[];
   suggestion: Suggestion | null;
@@ -83,12 +85,12 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
       done: isHabitDone(habit, dateStr, log),
       perWeek,
       doneThisWeek,
+      value: habit.unit ? habitValue(habit, dateStr, log) : null,
       owed: Math.max(0, perWeek - doneThisWeek),
     };
   });
 
-  const daily = dailyHabits();
-  const completed = daily.filter(h => isHabitDone(h, dateStr, log)).length;
+  const { completed, total } = dayScore(dateStr, log);
   const isRest = isRestDay(dateStr);
 
   return {
@@ -96,11 +98,11 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
     dayOfMonth: now.getDate(),
     isRest,
     completed,
-    total: daily.length,
+    total,
     statuses,
     // A rest day is a decision already made. Suggesting work would undo it.
     suggestion: isRest ? null : pickSuggestion(statuses, daysLeft),
-    daySituation: daySituation(completed, daily.length, isRest),
+    daySituation: daySituation(completed, total, isRest),
   };
 }
 

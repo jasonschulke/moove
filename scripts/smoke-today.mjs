@@ -80,7 +80,7 @@ check('Today carries the mark and wordmark',
 
 // Nothing is held by default, so an untouched day starts empty.
 const start = await ring().getAttribute('aria-label').catch(() => null);
-check('ring starts at 0 of 3', start === '0 of 3 done today', start ?? '(missing)');
+check('ring starts at 0 of 4', start === '0 of 4 done today', start ?? '(missing)');
 
 const reasonLine = await page.locator('.text-\\[13\\.5px\\]').first().innerText().catch(() => '');
 check('the suggestion carries a reason line', reasonLine.trim().length > 0, reasonLine);
@@ -89,26 +89,53 @@ check('the reason quotes the numbers', /\d/.test(reasonLine), reasonLine);
 await page.getByRole('button', { name: 'Walk', exact: true }).click();
 await page.waitForTimeout(500);
 const after = await ring().getAttribute('aria-label');
-check('logging Walk advances the ring', after === '1 of 3 done today', after ?? '(missing)');
+check('logging Walk advances the ring', after === '1 of 4 done today', after ?? '(missing)');
 
 await page.reload({ waitUntil: 'networkidle' });
 await settle();
 const persisted = await ring().getAttribute('aria-label');
-check('the log survives a reload', persisted === '1 of 3 done today', persisted ?? '(missing)');
+check('the log survives a reload', persisted === '1 of 4 done today', persisted ?? '(missing)');
 
-// A second daily habit takes it to two of three.
+// A second daily habit takes it to two of four.
 await page.getByRole('button', { name: 'Dry day', exact: true }).click();
 await page.waitForTimeout(500);
 const two = await ring().getAttribute('aria-label');
-check('a second daily habit advances it again', two === '2 of 3 done today', two ?? '(missing)');
+check('a second daily habit advances it again', two === '2 of 4 done today', two ?? '(missing)');
 
-// A weekly habit is debt, not day score. Its row carries its own count.
-// Weekly rows include that count in their accessible name, so match on a prefix.
+// A habit that carries a unit records a reading, so tapping it opens a field
+// rather than ticking a box. Nothing is logged until the reading is confirmed.
+await page.getByRole('button', { name: /^Weight\b/ }).first().click();
+await page.waitForTimeout(400);
+check('tapping a measured habit opens a field',
+  await page.getByLabel('Weight in lb').isVisible().catch(() => false));
+const midEntry = await ring().getAttribute('aria-label');
+check('opening the field logs nothing on its own', midEntry === '2 of 4 done today', midEntry ?? '(missing)');
+
+await page.getByLabel('Weight in lb').fill('182.4');
+await page.getByRole('button', { name: 'Save Weight' }).click();
+await page.waitForTimeout(500);
+const weighed = await ring().getAttribute('aria-label');
+check('confirming a reading checks the habit off', weighed === '3 of 4 done today', weighed ?? '(missing)');
+check('the row reports the reading',
+  await page.getByText('182.4 lb').isVisible().catch(() => false));
+// body_metrics is the store that syncs and that Health imports write to.
+// A second home for the same number would disagree with it inside a day.
+check('the reading goes to body metrics, not the habit log',
+  await page.evaluate(() => {
+    const metrics = localStorage.getItem('body_metrics') ?? '';
+    const logs = localStorage.getItem('habit_logs') ?? '';
+    return metrics.includes('182.4') && !logs.includes('182.4');
+  }));
+
+// A weekly habit joins both halves of the fraction on the day it is done, so
+// doing one can only add to the day. Weekly rows carry their count in their
+// accessible name, so match on a prefix.
 const beforeLift = await ring().getAttribute('aria-label');
 await page.getByRole('button', { name: /^Lift\b/ }).first().click();
 await page.waitForTimeout(500);
 const afterLift = await ring().getAttribute('aria-label');
-check('logging Lift leaves the ring alone', afterLift === beforeLift, `${beforeLift} -> ${afterLift}`);
+check('a weekly habit counts toward the day it is done',
+  afterLift === '4 of 5 done today', `${beforeLift} -> ${afterLift}`);
 check('Lift debt updates on its row', await page.getByText('1 of 3 this week').isVisible().catch(() => false));
 
 // Playwright refuses to click an obscured control, so this also proves the
@@ -119,7 +146,7 @@ check('rest day can be set', await page.getByText('Rest day', { exact: true }).i
 check('the suggestion goes quiet on a rest day',
   !(await page.getByText('Next', { exact: true }).isVisible().catch(() => false)));
 const restRing = await ring().getAttribute('aria-label');
-check('a rest day still scores the daily habits', restRing === '2 of 3 done today', restRing ?? '(missing)');
+check('a rest day still scores what was done', restRing === '4 of 5 done today', restRing ?? '(missing)');
 await page.getByRole('button', { name: 'Resting today' }).click();
 await page.waitForTimeout(500);
 check('rest day can be cleared', await page.getByText('Next').first().isVisible().catch(() => false));

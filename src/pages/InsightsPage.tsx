@@ -7,15 +7,15 @@
  * looking at rather than a separate room.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
-import { loadBodyMetrics, recordWeight, formatLocalDate } from '../data/storage';
+import { loadBodyMetrics } from '../data/storage';
 import { say } from '../data/voice';
 import { HabitIcon } from '../components/HabitIcon';
-import { habitColor } from '../data/habits';
+import { habitColor, loadHabits } from '../data/habits';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
@@ -235,62 +235,17 @@ function YearPanel({ now }: { now: Date }) {
   );
 }
 
+/**
+ * The weight line. Read-only: logging happens on Today, where weight is a
+ * habit like any other, so there is one place to record a thing and one place
+ * to look at it.
+ */
 function WeightPanel() {
-  const [metrics, setMetrics] = useState(() => loadBodyMetrics());
-  const [entering, setEntering] = useState(false);
-  const [draft, setDraft] = useState('');
+  const metrics = useMemo(() => loadBodyMetrics(), []);
 
   const weighed = useMemo(
     () => metrics.filter(m => typeof m.weight === 'number').sort((a, b) => a.date.localeCompare(b.date)),
     [metrics]
-  );
-
-  const save = useCallback(() => {
-    const value = parseFloat(draft);
-    // A fat-fingered decimal is easy and a silent bad point ruins the line.
-    if (!Number.isFinite(value) || value <= 0 || value > 1500) return;
-    setMetrics(recordWeight(Math.round(value * 10) / 10));
-    setDraft('');
-    setEntering(false);
-  }, [draft]);
-
-  const today = formatLocalDate(new Date());
-  const loggedToday = weighed.some(m => m.date === today);
-
-  const entry = entering ? (
-    <div className="flex items-center gap-2 mt-3">
-      <input
-        type="number"
-        inputMode="decimal"
-        step="0.1"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') save(); }}
-        placeholder="lb"
-        aria-label="Weight in pounds"
-        autoFocus
-        className="flex-grow min-w-0 px-3 py-2 rounded-[10px] text-[15px] bg-transparent outline-none"
-        style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
-      />
-      <button
-        onClick={() => { setEntering(false); setDraft(''); }}
-        className="mv-caps px-2 py-2"
-      >Cancel</button>
-      <button
-        onClick={save}
-        disabled={!draft.trim()}
-        className="px-4 h-10 rounded-[10px] text-[13px] font-semibold disabled:opacity-40"
-        style={{ background: 'var(--mv-ink)', color: 'var(--mv-paper)' }}
-      >Save</button>
-    </div>
-  ) : (
-    <button
-      onClick={() => setEntering(true)}
-      className="mv-caps mt-3"
-      style={{ color: 'var(--mv-ink)' }}
-    >
-      {loggedToday ? "Update today's weight" : "Log today's weight"}
-    </button>
   );
 
   if (weighed.length === 0) {
@@ -299,9 +254,8 @@ function WeightPanel() {
         <div className="mv-caps mx-1 mb-2">Weight</div>
         <div className="mv-card p-5">
           <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
-            Nothing recorded yet.
+            Nothing recorded yet. Tap Weight on Today to log one.
           </div>
-          {entry}
         </div>
       </>
     );
@@ -312,6 +266,11 @@ function WeightPanel() {
   monthAgo.setMonth(monthAgo.getMonth() - 1);
   const baseline = weighed.find(m => new Date(m.date) >= monthAgo) ?? weighed[0];
   const delta = latest.weight! - baseline.weight!;
+
+  // The line takes the weight habit's own colour, so the chart and the row on
+  // Today read as the same thing.
+  const weightHabit = loadHabits().find(h => h.source === 'bodyWeight');
+  const lineColor = weightHabit ? habitColor(weightHabit) : GREEN;
 
   const values = weighed.slice(-40).map(m => m.weight!);
   const min = Math.min(...values);
@@ -336,11 +295,10 @@ function WeightPanel() {
         </div>
         {values.length > 1 && (
           <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
-            <polyline points={points} fill="none" stroke={GREEN} strokeWidth="2"
+            <polyline points={points} fill="none" stroke={lineColor} strokeWidth="2"
               strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
         )}
-        {entry}
       </div>
     </>
   );

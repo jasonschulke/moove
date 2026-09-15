@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { loadHabits, dailyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
+import { loadHabits, countDoneInWeek, loadHabitLogs, dayScore, earliestMeasuredDate } from './habits';
 import { startOfWeek, endOfWeek } from '../utils/week';
 import { formatLocalDate, isRestDay, loadRestDays } from './storage';
 import type { Situation } from './voice';
@@ -35,7 +35,7 @@ export interface WeekReview {
 export interface DayCompletion {
   dateStr: string;
   dayOfMonth: number;
-  /** 0 to 1. Daily habits only, so the denominator is the same every day. */
+  /** 0 to 1, from dayScore: daily habits plus any weekly one done that day. */
   completion: number;
   isRest: boolean;
   isToday: boolean;
@@ -67,14 +67,19 @@ function weekTarget(habit: Habit): number {
  */
 export function trackingStartedOn(logs: HabitLogMap): string | null {
   const dates = Object.keys(logs).filter(d => Object.keys(logs[d] ?? {}).length > 0);
-  return dates.length === 0 ? null : dates.sort()[0];
+  const fromLog = dates.length === 0 ? null : dates.sort()[0];
+  // Weight does not live in the habit log, so a day on which the only thing
+  // you did was weigh yourself would otherwise read as before tracking began.
+  const fromMeasured = earliestMeasuredDate();
+  if (fromLog === null) return fromMeasured;
+  if (fromMeasured === null) return fromLog;
+  return fromLog < fromMeasured ? fromLog : fromMeasured;
 }
 
-/** The share of a day's daily habits that were done. */
+/** The share of a day that was closed. */
 export function dayCompletion(dateStr: string, logs: HabitLogMap): number {
-  const daily = dailyHabits();
-  if (daily.length === 0) return 0;
-  return daily.filter(h => isHabitDone(h, dateStr, logs)).length / daily.length;
+  const { completed, total } = dayScore(dateStr, logs);
+  return total === 0 ? 0 : completed / total;
 }
 
 export function formatWeekRange(date: Date): string {

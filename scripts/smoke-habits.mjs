@@ -40,8 +40,8 @@ await page.waitForTimeout(2600);
 
 await openLibrary();
 check('Library lands on Habits', await page.getByRole('button', { name: 'Add a Habit' }).isVisible().catch(() => false));
-check('the seeded five are listed',
-  (await names()).join(',') === 'Walk,Walk the dog,Dry day,Lift,Run', (await names()).join(','));
+check('the seeded six are listed',
+  (await names()).join(',') === 'Walk,Walk the dog,Dry day,Lift,Run,Weight', (await names()).join(','));
 check('the dry day reads as a weekly allowance, not as held',
   await page.getByText('5 of 7 days', { exact: true }).isVisible().catch(() => false));
 check('a weekly habit reads as weekly', await page.getByText('3× a week').isVisible().catch(() => false));
@@ -52,9 +52,9 @@ const iconNames = () =>
   page.locator('.mv-card .material-symbols-outlined').evaluateAll(
     els => els.map(el => el.dataset.icon ?? ''));
 const seededIcons = await iconNames();
-check('every seeded habit shows an icon', seededIcons.length >= 5, seededIcons.join(','));
+check('every seeded habit shows an icon', seededIcons.length >= 6, seededIcons.join(','));
 check('the icons are the seeded ones',
-  ['directions_walk', 'pets', 'no_drinks', 'fitness_center', 'directions_run']
+  ['directions_walk', 'pets', 'no_drinks', 'fitness_center', 'directions_run', 'monitor_weight']
     .every(i => seededIcons.includes(i)),
   seededIcons.join(','));
 
@@ -71,7 +71,7 @@ check('the new habit appears', (await names()).includes('Stretch'), (await names
 
 await openToday();
 const widened = await ring().getAttribute('aria-label');
-check('the ring widens to 4', widened === '0 of 4 done today', widened ?? '(missing)');
+check('the ring widens to 5', widened === '0 of 5 done today', widened ?? '(missing)');
 check('the new habit is loggable on Today',
   await page.getByRole('button', { name: 'Stretch', exact: true }).isVisible().catch(() => false));
 const todayIcons = await iconNames();
@@ -109,7 +109,7 @@ check('delete removes it', !(await names()).includes('Stretching'), (await names
 
 await openToday();
 const narrowed = await ring().getAttribute('aria-label');
-check('the ring narrows back to 3', narrowed === '0 of 3 done today', narrowed ?? '(missing)');
+check('the ring narrows back to 4', narrowed === '0 of 4 done today', narrowed ?? '(missing)');
 
 // An icon font renders its ligature as plain words until the glyph arrives.
 // On a phone with no signal that is what the row says, so the glyph is held

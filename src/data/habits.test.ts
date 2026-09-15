@@ -3,8 +3,10 @@ import {
   DEFAULT_HABITS, HABIT_ICONS, HABIT_ICON_GROUPS, HABIT_COLORS, habitColor,
   loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence,
   dailyHabits, weeklyHabits, loadHabitLogs,
-  isHabitDone, setHabitDone, toggleHabit, countDoneInWeek,
+  isHabitDone, habitValue, setHabitDone, toggleHabit, countDoneInWeek,
+  recordHabitValue, dayScore, earliestMeasuredDate,
 } from './habits';
+import { loadBodyMetrics } from './storage';
 import type { Habit } from '../types/habits';
 
 const byId = (id: string): Habit => {
@@ -13,20 +15,26 @@ const byId = (id: string): Habit => {
   return h;
 };
 
-/** A habit that opts into starting each day done, which none of the five do. */
+/** A habit that opts into starting each day done, which no default does. */
 const held = (): Habit =>
   ({ id: 'kept', name: 'Kept', cadence: { kind: 'daily' }, heldByDefault: true, order: 9 });
 
 beforeEach(() => { localStorage.clear(); });
 
 describe('the seeded defaults', () => {
-  it('hold the five tracked things with the right cadences', () => {
-    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+  it('hold the six tracked things with the right cadences', () => {
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run', 'weight']);
     expect(byId('walk').cadence).toEqual({ kind: 'daily' });
     expect(byId('dog').cadence).toEqual({ kind: 'daily' });
     expect(byId('dry').cadence).toEqual({ kind: 'daily-quota', perWeek: 5 });
     expect(byId('lift').cadence).toEqual({ kind: 'weekly', perWeek: 3 });
     expect(byId('run').cadence).toEqual({ kind: 'weekly', perWeek: 1 });
+    expect(byId('weight').cadence).toEqual({ kind: 'daily' });
+  });
+
+  it('give weight a unit and point it at the body metrics it already has', () => {
+    expect(byId('weight').unit).toBe('lb');
+    expect(byId('weight').source).toBe('bodyWeight');
   });
 
   it('hold nothing by default', () => {
@@ -37,8 +45,8 @@ describe('the seeded defaults', () => {
 });
 
 describe('dailyHabits and weeklyHabits', () => {
-  it('splits the five so the day score always has a denominator of three', () => {
-    expect(dailyHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry']);
+  it('splits the six by cadence', () => {
+    expect(dailyHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'weight']);
     expect(weeklyHabits().map(h => h.id)).toEqual(['lift', 'run']);
   });
 });
@@ -60,6 +68,94 @@ describe('isHabitDone', () => {
 
   it('does not let one day leak into another', () => {
     expect(isHabitDone(byId('walk'), '2026-09-16', { '2026-09-15': { walk: true } })).toBe(false);
+  });
+});
+
+describe('a measured habit', () => {
+  const weight = () => byId('weight');
+
+  it('is not done until there is a reading', () => {
+    expect(isHabitDone(weight(), '2026-09-15', {})).toBe(false);
+    expect(habitValue(weight(), '2026-09-15', {})).toBeNull();
+  });
+
+  it('records the reading in body metrics, not the habit log', () => {
+    recordHabitValue('weight', '2026-09-15', 182.35);
+    expect(loadHabitLogs()).toEqual({});
+    expect(loadBodyMetrics()).toEqual([{ date: '2026-09-15', weight: 182.4, source: 'manual' }]);
+  });
+
+  it('counts as done by virtue of having a reading', () => {
+    recordHabitValue('weight', '2026-09-15', 182);
+    expect(isHabitDone(weight(), '2026-09-15', {})).toBe(true);
+    expect(habitValue(weight(), '2026-09-15', {})).toBe(182);
+    expect(isHabitDone(weight(), '2026-09-16', {})).toBe(false);
+  });
+
+  it('picks up a reading that arrived from Health', () => {
+    localStorage.setItem('body_metrics', JSON.stringify(
+      [{ date: '2026-09-15', weight: 181, source: 'apple_health' }]));
+    expect(isHabitDone(weight(), '2026-09-15', {})).toBe(true);
+  });
+
+  it('clears back to undone', () => {
+    recordHabitValue('weight', '2026-09-15', 182);
+    setHabitDone('weight', '2026-09-15', false);
+    expect(isHabitDone(weight(), '2026-09-15', {})).toBe(false);
+    expect(loadBodyMetrics()).toEqual([]);
+  });
+
+  it('refuses a reading that cannot be a weight', () => {
+    expect(recordHabitValue('weight', '2026-09-15', 0)).toBeNull();
+    expect(recordHabitValue('weight', '2026-09-15', NaN)).toBeNull();
+    expect(isHabitDone(weight(), '2026-09-15', {})).toBe(false);
+  });
+});
+
+describe('earliestMeasuredDate', () => {
+  it('is nothing until a reading is entered', () => {
+    expect(earliestMeasuredDate()).toBeNull();
+  });
+
+  it('is the first reading you entered yourself', () => {
+    recordHabitValue('weight', '2026-09-15', 182);
+    recordHabitValue('weight', '2026-09-12', 183);
+    expect(earliestMeasuredDate()).toBe('2026-09-12');
+  });
+
+  it('ignores an import, which is history rather than tracking', () => {
+    // Years of Health data would otherwise backdate the start of tracking and
+    // fill the year grid with months scored near zero.
+    localStorage.setItem('body_metrics', JSON.stringify([
+      { date: '2019-04-01', weight: 190, source: 'apple_health' },
+      { date: '2026-09-15', weight: 182, source: 'manual' },
+    ]));
+    expect(earliestMeasuredDate()).toBe('2026-09-15');
+  });
+});
+
+describe('dayScore', () => {
+  it('is daily habits over daily habits when no weekly one was done', () => {
+    expect(dayScore('2026-09-15', { '2026-09-15': { walk: true } }))
+      .toEqual({ completed: 1, total: 4 });
+  });
+
+  it('adds a weekly habit to both halves on the day it is done', () => {
+    // Lift today and the day is out of five, not four. Credit, never dilution.
+    expect(dayScore('2026-09-15', { '2026-09-15': { walk: true, lift: true } }))
+      .toEqual({ completed: 2, total: 5 });
+  });
+
+  it('does not hold a slot open for a weekly habit you skipped', () => {
+    expect(dayScore('2026-09-15', { '2026-09-16': { lift: true } }))
+      .toEqual({ completed: 0, total: 4 });
+  });
+
+  it('can close a day that includes a weekly habit', () => {
+    recordHabitValue('weight', '2026-09-15', 182);
+    const score = dayScore('2026-09-15',
+      { '2026-09-15': { walk: true, dog: true, dry: true, lift: true, run: true } });
+    expect(score).toEqual({ completed: 6, total: 6 });
   });
 });
 
@@ -168,7 +264,7 @@ describe('managing the list', () => {
     const habits = loadHabits();
     expect(habits[1].name).toBe('Dog walk');
     expect(habits[1].cadence).toEqual({ kind: 'weekly', perWeek: 4 });
-    expect(habits.map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+    expect(habits.map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run', 'weight']);
   });
 
   it('returns null when updating a habit that is gone', () => {
@@ -178,31 +274,31 @@ describe('managing the list', () => {
   it('deletes a habit and closes the gap in the order', () => {
     deleteHabit('dry');
     const habits = loadHabits();
-    expect(habits.map(h => h.id)).toEqual(['walk', 'dog', 'lift', 'run']);
-    expect(habits.map(h => h.order)).toEqual([0, 1, 2, 3]);
+    expect(habits.map(h => h.id)).toEqual(['walk', 'dog', 'lift', 'run', 'weight']);
+    expect(habits.map(h => h.order)).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('moves a habit down', () => {
     moveHabit('walk', 1);
-    expect(loadHabits().map(h => h.id)).toEqual(['dog', 'walk', 'dry', 'lift', 'run']);
+    expect(loadHabits().map(h => h.id)).toEqual(['dog', 'walk', 'dry', 'lift', 'run', 'weight']);
   });
 
   it('moves a habit up', () => {
     moveHabit('dry', -1);
-    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dry', 'dog', 'lift', 'run']);
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dry', 'dog', 'lift', 'run', 'weight']);
   });
 
   it('does nothing at either end', () => {
     moveHabit('walk', -1);
-    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
-    moveHabit('run', 1);
-    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run', 'weight']);
+    moveHabit('weight', 1);
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run', 'weight']);
   });
 
   it('widens the ring when a daily habit is added', () => {
-    expect(dailyHabits().length).toBe(3);
-    addHabit({ name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false });
     expect(dailyHabits().length).toBe(4);
+    addHabit({ name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false });
+    expect(dailyHabits().length).toBe(5);
   });
 
   it('survives corrupt stored data by falling back to the defaults', () => {
@@ -285,7 +381,7 @@ describe('colour', () => {
     for (const habit of DEFAULT_HABITS) expect(keys, habit.name).toContain(habit.color!);
   });
 
-  it('gives the five different colours, so a list reads as a list', () => {
+  it('gives the defaults different colours, so a list reads as a list', () => {
     const used = DEFAULT_HABITS.map(h => h.color);
     expect(new Set(used).size).toBe(used.length);
   });

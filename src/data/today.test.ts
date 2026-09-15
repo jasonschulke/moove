@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getTodayView, debtSituation, daySituation } from './today';
 import type { HabitLogMap } from '../types/habits';
+import { recordHabitValue } from './habits';
+
+/** Weight lives in body metrics, so a weigh-in is the way to tick that habit. */
+const weighIn = (dateStr: string) => recordHabitValue('weight', dateStr, 182);
 
 // Tuesday 15 September 2026. Week is Mon 14 to Sun 20: six days left counting today.
 const tuesday = () => new Date(2026, 8, 15, 12, 0, 0);
@@ -38,8 +42,8 @@ describe('daySituation', () => {
 });
 
 describe('getTodayView', () => {
-  it('has a denominator of three, always', () => {
-    expect(getTodayView(tuesday(), {}).total).toBe(3);
+  it('is out of the four daily habits when nothing weekly was done', () => {
+    expect(getTodayView(tuesday(), {}).total).toBe(4);
   });
 
   it('starts an untouched day at zero', () => {
@@ -57,19 +61,45 @@ describe('getTodayView', () => {
     expect(getTodayView(tuesday(), logs).completed).toBe(2);
   });
 
-  it('never counts lift or run toward the day score', () => {
+  it('counts a weekly habit on the day it is done, in both halves', () => {
     const view = getTodayView(tuesday(), { '2026-09-15': { lift: true, run: true } });
+    expect(view.completed).toBe(2);
+    expect(view.total).toBe(6);
+  });
+
+  it('leaves no gap for a weekly habit that was not done today', () => {
+    const view = getTodayView(tuesday(), { '2026-09-14': { lift: true } });
     expect(view.completed).toBe(0);
-    expect(view.total).toBe(3);
+    expect(view.total).toBe(4);
+  });
+
+  it('lets a weekly habit close the day rather than dilute it', () => {
+    weighIn('2026-09-15');
+    const logs: HabitLogMap = { '2026-09-15': { walk: true, dog: true, dry: true, lift: true } };
+    const view = getTodayView(tuesday(), logs);
+    expect([view.completed, view.total]).toEqual([5, 5]);
+    expect(view.daySituation).toBe('dayClosed');
+  });
+
+  it('reports the reading on a measured habit', () => {
+    recordHabitValue('weight', '2026-09-15', 182.4);
+    const weight = getTodayView(tuesday(), {}).statuses.find(s => s.habit.id === 'weight')!;
+    expect([weight.done, weight.value]).toEqual([true, 182.4]);
+  });
+
+  it('leaves value null on a habit with no unit', () => {
+    const walk = getTodayView(tuesday(), { '2026-09-15': { walk: true } })
+      .statuses.find(s => s.habit.id === 'walk')!;
+    expect(walk.value).toBeNull();
   });
 
   it('reports the day of the month', () => {
     expect(getTodayView(tuesday(), {}).dayOfMonth).toBe(15);
   });
 
-  it('returns a status for all five habits, in order', () => {
+  it('returns a status for all six habits, in order', () => {
     expect(getTodayView(tuesday(), {}).statuses.map(s => s.habit.id))
-      .toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+      .toEqual(['walk', 'dog', 'dry', 'lift', 'run', 'weight']);
   });
 
   it('reports weekly debt on the weekly rows', () => {
@@ -111,6 +141,7 @@ describe('getTodayView suggestion', () => {
   });
 
   it('suggests nothing when everything is settled', () => {
+    weighIn('2026-09-15');
     const logs: HabitLogMap = {
       '2026-09-14': { lift: true, run: true },
       '2026-09-15': { lift: true, walk: true, dog: true, dry: true },
@@ -129,6 +160,6 @@ describe('getTodayView suggestion', () => {
   it('still scores the daily habits on a rest day', () => {
     localStorage.setItem('rest_days', JSON.stringify(['2026-09-15']));
     const view = getTodayView(tuesday(), { '2026-09-15': { walk: true } });
-    expect([view.total, view.completed]).toEqual([3, 1]);
+    expect([view.total, view.completed]).toEqual([4, 1]);
   });
 });

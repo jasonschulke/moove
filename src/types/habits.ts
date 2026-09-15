@@ -36,8 +36,27 @@ export interface Habit {
    * uses the app's green.
    */
   color?: string;
+  /**
+   * Set for habits that record a number rather than a tick, e.g. "lb" on
+   * weight. Tapping one on Today opens an entry field; confirming a value both
+   * stores it and checks the habit off.
+   */
+  unit?: string;
+  /**
+   * Where a measured habit's number is kept. Absent means the habit log.
+   * 'bodyWeight' points at body_metrics, which already holds the weight
+   * history, feeds the chart, syncs to Supabase and receives Health
+   * imports. Two stores for one number would disagree inside a day.
+   */
+  source?: 'bodyWeight';
   order: number;
 }
 
-/** date (YYYY-MM-DD) -> habit id -> done. Absent means "use the habit's default". */
-export type HabitLogMap = Record<string, Record<string, boolean>>;
+/**
+ * date (YYYY-MM-DD) -> habit id -> what happened.
+ *
+ * `true` or `false` for an ordinary habit. A number for one that carries a
+ * unit, which counts as done by virtue of having a value at all. Absent means
+ * "use the habit's default".
+ */
+export type HabitLogMap = Record<string, Record<string, boolean | number>>;

@@ -302,6 +302,12 @@ body {
   color: var(--mv-muted);
 }
 
+/* Entry fields for a measured habit. The browser's own stepper arrows are a
+   desktop control on a screen that is used with a thumb. */
+.mv-number { appearance: textfield; -moz-appearance: textfield; }
+.mv-number::-webkit-outer-spin-button,
+.mv-number::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 /* Black is structure. */
 .mv-rule { height: 2px; background: var(--mv-ink); }
 

@@ -5,7 +5,10 @@ import {
 } from './insights';
 import type { HabitBar } from './insights';
 import type { HabitLogMap } from '../types/habits';
-import { loadHabits } from './habits';
+import { loadHabits, recordHabitValue } from './habits';
+
+/** Weight lives in body metrics, so a weigh-in is the way to tick that habit. */
+const weighIn = (dateStr: string) => recordHabitValue('weight', dateStr, 182);
 
 // Wednesday 16 September 2026. Week is Mon 14 to Sun 20.
 const wednesday = () => new Date(2026, 8, 16, 12, 0, 0);
@@ -21,15 +24,24 @@ describe('dayCompletion', () => {
   });
 
   it('is 1 when every daily habit is done', () => {
+    weighIn('2026-09-16');
     expect(dayCompletion('2026-09-16', { '2026-09-16': { walk: true, dog: true, dry: true } })).toBe(1);
   });
 
-  it('counts one third for one of three', () => {
-    expect(dayCompletion('2026-09-16', { '2026-09-16': { dry: true } })).toBeCloseTo(1 / 3);
+  it('counts a quarter for one of the four daily habits', () => {
+    expect(dayCompletion('2026-09-16', { '2026-09-16': { dry: true } })).toBeCloseTo(1 / 4);
   });
 
-  it('ignores weekly habits', () => {
-    expect(dayCompletion('2026-09-16', { '2026-09-16': { lift: true, run: true } })).toBe(0);
+  it('credits a weekly habit on the day it was done', () => {
+    // Two of six, not zero: lift and run join both halves of the fraction.
+    expect(dayCompletion('2026-09-16', { '2026-09-16': { lift: true, run: true } }))
+      .toBeCloseTo(2 / 6);
+  });
+
+  it('still reads 1 on a day that also included a weekly habit', () => {
+    weighIn('2026-09-16');
+    const logs: HabitLogMap = { '2026-09-16': { walk: true, dog: true, dry: true, lift: true } };
+    expect(dayCompletion('2026-09-16', logs)).toBe(1);
   });
 });
 
@@ -73,6 +85,7 @@ describe('getWeekReview', () => {
   });
 
   it('counts a fully closed day', () => {
+    weighIn('2026-09-14');
     const logs: HabitLogMap = {
       '2026-09-14': { walk: true, dog: true, dry: true },
       '2026-09-15': { walk: true },
@@ -84,7 +97,7 @@ describe('getWeekReview', () => {
   it('gives every habit a bar with the right target', () => {
     const review = getWeekReview(wednesday(), {});
     const targets = Object.fromEntries(review.bars.map(b => [b.habit.id, b.target]));
-    expect(targets).toEqual({ walk: 7, dog: 7, dry: 5, lift: 3, run: 1 });
+    expect(targets).toEqual({ walk: 7, dog: 7, dry: 5, lift: 3, run: 1, weight: 7 });
   });
 
   it('never reports more done than the target', () => {
@@ -114,6 +127,7 @@ describe('getMonthCompletion', () => {
   });
 
   it('scores days that have happened', () => {
+    weighIn('2026-09-15');
     const days = getMonthCompletion(wednesday(), { '2026-09-15': { walk: true, dog: true, dry: true } });
     expect(days.find(d => d.dayOfMonth === 15)!.completion).toBe(1);
   });
@@ -159,8 +173,19 @@ describe('untracked history', () => {
   });
 
   it('scores tracked days normally', () => {
+    weighIn('2026-09-14');
     const logs: HabitLogMap = { '2026-09-14': { walk: true, dog: true, dry: true } };
     expect(getMonthCompletion(wednesday(), logs).find(d => d.dayOfMonth === 14)!.completion).toBe(1);
+  });
+
+  it('counts a weigh-in as the day tracking began', () => {
+    // Weight is not in the habit log, so a day whose only entry was a weigh-in
+    // would otherwise read as before tracking started.
+    weighIn('2026-09-10');
+    expect(trackingStartedOn({})).toBe('2026-09-10');
+    const days = getMonthCompletion(wednesday(), {});
+    expect(days.find(d => d.dayOfMonth === 9)!.isUntracked).toBe(true);
+    expect(days.find(d => d.dayOfMonth === 10)!.isUntracked).toBe(false);
   });
 
   it('ignores a date whose entry is empty', () => {
