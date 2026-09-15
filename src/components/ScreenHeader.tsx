@@ -2,10 +2,11 @@
  * The header every screen shares: the mark and the screen's wordmark. Nothing
  * is drawn under or over it; the cards below carry the structure.
  *
- * `wordmark` is a path in public/. Screens without artwork pass `label`
- * instead, set to match the artwork's cap height rather than the caption size
- * it used to borrow, which left one screen's name visibly smaller than the
- * rest.
+ * `wordmark` is a path in public/. Every screen has artwork now, including
+ * Insights, whose wordmark is built from the letterforms in the others rather
+ * than set in a system face that never matched. `label` remains as a fallback
+ * for a screen added without artwork, sized to the artwork's cap height so it
+ * is at least the right size when it is the wrong font.
  */
 
 interface ScreenHeaderProps {

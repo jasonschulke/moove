@@ -100,7 +100,9 @@ function DaySheet({ dateStr, onClose, onChange }: {
           <div className="mv-card flex items-center gap-5 p-5 mb-4">
             <CompletionRing completed={view.completed} total={view.total} size={84} />
             <div className="min-w-0 text-[14px]" style={{ color: 'var(--mv-muted)' }}>
-              {view.isRest ? 'Rest day.' : `${view.completed} of ${view.total} done.`}
+              {view.isRest ? 'Rest day.'
+                : view.total === 0 ? 'Nothing was being tracked yet. Tick one below to count it from this day.'
+                : `${view.completed} of ${view.total} done.`}
             </div>
           </div>
 
@@ -128,7 +130,7 @@ function WeekPanel({ now }: { now: Date }) {
       {review.bars.map(b => (
         <div key={b.habit.id} className="flex items-center gap-2 py-1.5">
           <HabitIcon icon={b.habit.icon} size={17} style={{ color: habitColor(b.habit) }} />
-          <span className="w-[80px] flex-shrink-0 text-[13px] truncate" style={{ color: 'var(--mv-ink)' }}>
+          <span className="w-[96px] flex-shrink-0 text-[13px] truncate" style={{ color: 'var(--mv-ink)' }}>
             {b.habit.name}
           </span>
           <span className="flex-grow h-1.5 rounded-full" style={{ background: TRACK }}>
@@ -381,7 +383,7 @@ function MeasuredChart({ habit }: { habit: Habit }) {
       )}
       {habit.target !== undefined && (
         <div className="mv-caps mt-2" style={{ color: 'var(--mv-faint)' }}>
-          Target {habit.targetDirection === 'atMost' ? 'at most' : 'at least'} {habit.target} {habit.unit}
+          Goal {habit.targetDirection === 'atMost' ? '\u2264' : '\u2265'} {habit.target} {habit.unit}
         </div>
       )}
     </div>
@@ -432,7 +434,7 @@ export function InsightsPage() {
   return (
     <div className="mv-paper min-h-screen pb-40">
       <div className="max-w-lg mx-auto">
-        <ScreenHeader label="Insights" alt="Insights" />
+        <ScreenHeader wordmark="/insights.svg" alt="Insights" />
 
         {/* The same segmented control Library uses for its tabs. */}
         <div className="px-4 mt-4">

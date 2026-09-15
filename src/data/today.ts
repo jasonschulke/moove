@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { habitsOn, dailyHabits, weeklyHabits, isHabitDone, habitValue, countDoneInWeek, loadHabitLogs, dayScore } from './habits';
+import { habitsOn, loadHabits, dailyHabits, weeklyHabits, isHabitDone, habitValue, countDoneInWeek, loadHabitLogs, dayScore } from './habits';
 import { daysLeftInWeek } from '../utils/week';
 import { formatLocalDate, isRestDay } from './storage';
 import type { Situation } from './voice';
@@ -77,10 +77,16 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
   const dateStr = formatLocalDate(now);
   const daysLeft = daysLeftInWeek(now);
 
-  // What was being tracked on the date, not what is tracked now. Opening an
-  // old day from the month grid should not offer rows that cannot score,
-  // because dayScore judges that day by the same list.
-  const statuses: HabitStatus[] = habitsOn(dateStr).map(habit => {
+  // What was being tracked on the date, plus anything tracked now. The first
+  // half is what dayScore judges the day by; the second is what makes an old
+  // day fillable at all, since a habit added today did not exist on a day you
+  // are trying to correct. Logging one there moves its start back to meet it.
+  const onThatDay = habitsOn(dateStr);
+  const seen = new Set(onThatDay.map(h => h.id));
+  const offerable = [...onThatDay, ...loadHabits().filter(h => !seen.has(h.id))]
+    .sort((a, b) => a.order - b.order);
+
+  const statuses: HabitStatus[] = offerable.map(habit => {
     const doneThisWeek = countDoneInWeek(habit, now, log);
     const perWeek = weeklyTarget(habit);
     return {

@@ -323,12 +323,14 @@ export function describeCadence(cadence: HabitCadence, heldByDefault: boolean): 
   }
 }
 
-/** What a measured habit records, in plain words. Null if it is a tick. */
-export function describeMeasure(habit: Habit): string | null {
-  if (!habit.unit) return null;
-  if (habit.target === undefined) return `Records a number in ${habit.unit}`;
-  const side = habit.targetDirection === 'atMost' ? 'at most' : 'at least';
-  return `Records ${habit.unit}, goal ${side} ${habit.target}`;
+/**
+ * A measured habit's goal, for the second line of its card. Null when there
+ * is no goal, and never a line about recording a number: the unit already
+ * shows wherever a reading does, so saying it again in the list was noise.
+ */
+export function describeGoal(habit: Habit): string | null {
+  if (!habit.unit || habit.target === undefined) return null;
+  return `Goal ${habit.targetDirection === 'atMost' ? '\u2264' : '\u2265'} ${habit.target} ${habit.unit}`;
 }
 
 export function loadHabitLogs(): HabitLogMap {
@@ -412,6 +414,13 @@ export function measuredHabits(): Habit[] {
 /** Write one habit's state for one date. Returns the updated map. */
 export function setHabitDone(habitId: string, dateStr: string, done: boolean | number): HabitLogMap {
   const habit = loadHabits().find(h => h.id === habitId);
+
+  // Filling in an older day is you saying you were doing this then, so the
+  // habit's start moves back to meet it. Without this, backfilling a day from
+  // the month grid wrote a log that nothing would ever count.
+  if (habit && done !== false && habit.createdOn && dateStr < habit.createdOn) {
+    updateHabit(habit.id, { createdOn: dateStr });
+  }
 
   if (habit?.unit && habit.source === 'bodyWeight') {
     // The number is the record. Ticking one of these without a reading is not

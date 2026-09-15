@@ -5,7 +5,7 @@ import {
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, habitValue, setHabitDone, toggleHabit, countDoneInWeek,
   recordHabitValue, dayScore, earliestMeasuredDate,
-  habitSeries, measuredHabits, describeMeasure, HABIT_UNITS,
+  habitSeries, measuredHabits, describeGoal, HABIT_UNITS,
   habitsOn, loadArchivedHabits,
 } from './habits';
 import { loadBodyMetrics } from './storage';
@@ -165,12 +165,14 @@ describe('a measured habit with a goal', () => {
     expect(dayScore('2026-09-15', loadHabitLogs()).completed).toBe(1);
   });
 
-  it('describes itself in the list', () => {
-    expect(describeMeasure(water())).toBe('Records oz, goal at least 64');
-    expect(describeMeasure(water({ target: 120, targetDirection: 'atMost', unit: 'min' })))
-      .toBe('Records min, goal at most 120');
-    expect(describeMeasure(water({ target: undefined }))).toBe('Records a number in oz');
-    expect(describeMeasure(byId('walk'))).toBeNull();
+  it('shows its goal in the list, and nothing when it has none', () => {
+    expect(describeGoal(water())).toBe('Goal ≥ 64 oz');
+    expect(describeGoal(water({ target: 120, targetDirection: 'atMost', unit: 'min' })))
+      .toBe('Goal ≤ 120 min');
+    // No goal means no second line. The unit already shows wherever a reading
+    // does, so repeating it in the list was noise.
+    expect(describeGoal(water({ target: undefined }))).toBeNull();
+    expect(describeGoal(byId('walk'))).toBeNull();
   });
 });
 
@@ -203,6 +205,33 @@ describe('habitSeries and measuredHabits', () => {
   it('offers units worth not typing on a phone', () => {
     expect(HABIT_UNITS).toContain('lb');
     expect(new Set(HABIT_UNITS).size).toBe(HABIT_UNITS.length);
+  });
+});
+
+describe('filling in an older day', () => {
+  it('moves the habit start back to meet the log', () => {
+    trackingSince('2026-09-10');
+    setHabitDone('walk', '2026-09-03', true);
+    expect(byId('walk').createdOn).toBe('2026-09-03');
+    expect(dayScore('2026-09-03', loadHabitLogs())).toEqual({ completed: 1, total: 1 });
+  });
+
+  it('leaves the start alone when logging inside the tracked range', () => {
+    trackingSince('2026-09-10');
+    setHabitDone('walk', '2026-09-12', true);
+    expect(byId('walk').createdOn).toBe('2026-09-10');
+  });
+
+  it('does not backdate when clearing a habit', () => {
+    trackingSince('2026-09-10');
+    setHabitDone('walk', '2026-09-03', false);
+    expect(byId('walk').createdOn).toBe('2026-09-10');
+  });
+
+  it('backdates on a reading too', () => {
+    trackingSince('2026-09-10');
+    recordHabitValue('weight', '2026-09-04', 182);
+    expect(byId('weight').createdOn).toBe('2026-09-04');
   });
 });
 

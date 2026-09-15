@@ -12,7 +12,7 @@ import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
 import {
   loadHabits, addHabit, updateHabit, deleteHabit, moveHabitAmong,
-  describeCadence, describeMeasure, habitColor, HABIT_UNITS,
+  describeCadence, describeGoal, habitColor, HABIT_UNITS,
 } from '../data/habits';
 import { IconPicker } from './IconPicker';
 import { HabitIcon } from './HabitIcon';
@@ -70,12 +70,15 @@ const draftFrom = (habit: Habit): DraftState => ({
   source: habit.source,
 });
 
-function HabitEditor({ draft, onChange, onSave, onCancel }: {
+function HabitEditor({ draft, onChange, onSave, onCancel, onDelete }: {
   draft: DraftState;
   onChange: (d: DraftState) => void;
   onSave: () => void;
   onCancel: () => void;
+  /** Absent for a habit that does not exist yet. */
+  onDelete?: () => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
   const needsCount = draft.kind !== 'daily';
   const hasTarget = draft.target.trim().length > 0;
   const unitLabel = draft.unit.trim() || 'the unit';
@@ -279,6 +282,33 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
           {draft.id ? 'Save' : 'Add habit'}
         </button>
       </div>
+
+      {/* Deleting is an edit, so it lives with the other edits rather than
+          beside the habit where a stray tap can reach it. */}
+      {onDelete && (
+        <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--mv-hairline)' }}>
+          {confirming ? (
+            <div className="flex items-center gap-2">
+              <span className="flex-grow text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
+                Stop tracking {draft.name.trim() || 'this habit'}? Past weeks keep it.
+              </span>
+              <button onClick={() => setConfirming(false)} className="mv-caps px-2 py-1">Keep</button>
+              <button
+                onClick={onDelete}
+                aria-label={`Delete ${draft.name.trim()}`}
+                className="mv-caps px-2 py-1"
+                style={{ color: '#b91c1c' }}
+              >Delete</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirming(true)}
+              aria-label={`Remove ${draft.name.trim()}`}
+              className="mv-caps"
+            >Stop tracking this habit</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -306,99 +336,74 @@ function GearIcon({ size = 17 }: { size?: number }) {
 /**
  * One habit at rest.
  *
- * Edit and delete live behind a gear rather than sitting on the card, because
- * two permanent text buttons per row made a list of six habits read as twelve
- * actions. The reorder arrows are behind the page's own gear for the same
- * reason: you reorder once and then never again.
+ * The whole card is the edit control. Two text buttons per row made a list of
+ * six habits read as twelve actions, and a gear to reveal them was a tap that
+ * bought nothing. The reorder arrows stay behind the page's own gear, since
+ * you reorder once and then never again.
  */
-function HabitCard({ habit, menuOpen, confirming, reordering, canUp, canDown,
-  onMenu, onEdit, onAskDelete, onKeep, onDelete, onMove }: {
+function HabitCard({ habit, reordering, canUp, canDown, onEdit, onMove }: {
   habit: Habit;
-  menuOpen: boolean;
-  confirming: boolean;
   reordering: boolean;
   canUp: boolean;
   canDown: boolean;
-  onMenu: () => void;
   onEdit: () => void;
-  onAskDelete: () => void;
-  onKeep: () => void;
-  onDelete: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
-  const measure = describeMeasure(habit);
+  const goal = describeGoal(habit);
+
+  const body = (
+    <>
+      <HabitIcon icon={habit.icon} size={22} style={{ color: habitColor(habit) }} />
+      <span className="flex-grow min-w-0 text-[15px] truncate" style={{ color: 'var(--mv-ink)' }}>
+        {habit.name}
+      </span>
+      <span className="flex-shrink-0 text-right">
+        <span className="block text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
+          {describeCadence(habit.cadence, habit.heldByDefault)}
+        </span>
+        {goal && (
+          <span className="block text-[12.5px]" style={{ color: 'var(--mv-faint)' }}>{goal}</span>
+        )}
+      </span>
+    </>
+  );
+
+  if (reordering) {
+    return (
+      <div className="mv-card flex items-center gap-3 px-4 py-3.5">
+        {body}
+        <span className="flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--mv-muted)' }}>
+          <button
+            onClick={() => onMove(-1)}
+            disabled={!canUp}
+            aria-label={`Move ${habit.name} up`}
+            className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
+          ><ArrowIcon up /></button>
+          <button
+            onClick={() => onMove(1)}
+            disabled={!canDown}
+            aria-label={`Move ${habit.name} down`}
+            className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
+          ><ArrowIcon up={false} /></button>
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <div className="mv-card p-4">
-      <div className="flex items-start gap-3">
-        <HabitIcon icon={habit.icon} size={22} style={{ color: habitColor(habit), marginTop: 1 }} />
-        <div className="flex-grow min-w-0">
-          <div className="text-[15px]" style={{ color: 'var(--mv-ink)' }}>{habit.name}</div>
-          <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>
-            {describeCadence(habit.cadence, habit.heldByDefault)}
-          </div>
-          {measure && (
-            <div className="text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>{measure}</div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--mv-muted)' }}>
-          {reordering ? (
-            <>
-              <button
-                onClick={() => onMove(-1)}
-                disabled={!canUp}
-                aria-label={`Move ${habit.name} up`}
-                className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
-              ><ArrowIcon up /></button>
-              <button
-                onClick={() => onMove(1)}
-                disabled={!canDown}
-                aria-label={`Move ${habit.name} down`}
-                className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
-              ><ArrowIcon up={false} /></button>
-            </>
-          ) : (
-            <button
-              onClick={onMenu}
-              aria-label={`Options for ${habit.name}`}
-              aria-expanded={menuOpen}
-              className="w-8 h-8 flex items-center justify-center rounded-lg"
-              style={{ color: menuOpen ? 'var(--mv-ink)' : 'var(--mv-muted)' }}
-            ><GearIcon /></button>
-          )}
-        </div>
-      </div>
-
-      {confirming ? (
-        <div className="flex items-center gap-2 mt-3">
-          <span className="flex-grow text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
-            Stop tracking {habit.name}? Past weeks keep it.
-          </span>
-          <button onClick={onKeep} className="mv-caps px-2 py-1">Keep</button>
-          <button
-            onClick={onDelete}
-            aria-label={`Delete ${habit.name}`}
-            className="mv-caps px-2 py-1"
-            style={{ color: '#b91c1c' }}
-          >Delete</button>
-        </div>
-      ) : menuOpen ? (
-        <div className="flex gap-4 mt-3">
-          <button onClick={onEdit} className="mv-caps" style={{ color: 'var(--mv-ink)' }}>Edit</button>
-          <button onClick={onAskDelete} aria-label={`Remove ${habit.name}`} className="mv-caps">Delete</button>
-        </div>
-      ) : null}
-    </div>
+    <button
+      onClick={onEdit}
+      aria-label={`Edit ${habit.name}`}
+      className="mv-card w-full flex items-center gap-3 px-4 py-3.5 text-left active:scale-[0.99] transition-transform"
+    >
+      {body}
+    </button>
   );
 }
 
 export function HabitManager() {
   const [habits, setHabits] = useState<Habit[]>(() => loadHabits());
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
-  /** The habit whose gear menu is open. One at a time. */
-  const [menu, setMenu] = useState<string | null>(null);
   const [pageMenu, setPageMenu] = useState(false);
   const [reordering, setReordering] = useState(false);
 
@@ -436,21 +441,13 @@ export function HabitManager() {
     else addHabit(fields);
 
     setDraft(null);
-    setMenu(null);
     refresh();
   };
 
   const remove = (id: string) => {
     deleteHabit(id);
-    setConfirming(null);
-    setMenu(null);
+    setDraft(null);
     refresh();
-  };
-
-  const openEditor = (habit: Habit) => {
-    setDraft(draftFrom(habit));
-    setMenu(null);
-    setConfirming(null);
   };
 
   // Daily and weekly are different promises, and reading them as one list made
@@ -490,7 +487,7 @@ export function HabitManager() {
       {pageMenu && (
         <div className="mv-card p-2 mb-4">
           <button
-            onClick={() => { setReordering(r => !r); setPageMenu(false); setMenu(null); }}
+            onClick={() => { setReordering(r => !r); setPageMenu(false); setDraft(null); }}
             className="w-full text-left px-3 py-2.5 text-[14px]"
             style={{ color: 'var(--mv-ink)' }}
           >
@@ -527,22 +524,17 @@ export function HabitManager() {
                       onChange={setDraft}
                       onSave={save}
                       onCancel={() => setDraft(null)}
+                      onDelete={() => remove(habit.id)}
                     />
                   </div>
                 ) : (
                   <HabitCard
                     key={habit.id}
                     habit={habit}
-                    menuOpen={menu === habit.id}
-                    confirming={confirming === habit.id}
                     reordering={reordering}
                     canUp={i > 0}
                     canDown={i < group.habits.length - 1}
-                    onMenu={() => { setMenu(m => (m === habit.id ? null : habit.id)); setConfirming(null); }}
-                    onEdit={() => openEditor(habit)}
-                    onAskDelete={() => setConfirming(habit.id)}
-                    onKeep={() => setConfirming(null)}
-                    onDelete={() => remove(habit.id)}
+                    onEdit={() => setDraft(draftFrom(habit))}
                     onMove={dir => { moveHabitAmong(habit.id, dir, ids); refresh(); }}
                   />
                 )
