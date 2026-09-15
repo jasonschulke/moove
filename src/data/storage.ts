@@ -40,6 +40,7 @@ const PERSONALITY_KEY = 'workout_personality';     // AI personality preference
 const FAVORITES_KEY = 'workout_favorites';         // Favorited workouts/exercises
 const SKIP_COUNTS_KEY = 'workout_skip_counts';     // Skip/swap tracking
 const CUSTOM_DESCRIPTIONS_KEY = 'workout_custom_descriptions'; // User exercise notes
+const SEEDED_KEY = 'workout_defaults_seeded';      // Default workout seeded once
 
 // ============================================================================
 // DATE UTILITIES
@@ -208,11 +209,19 @@ const DEFAULT_FULL_BODY_WORKOUT: Omit<SavedWorkout, 'id' | 'createdAt' | 'update
   ],
 };
 
+/**
+ * Seed the default workout, once per install.
+ *
+ * Guarded by a flag rather than by an empty library, so that deliberately
+ * deleting every saved workout does not silently bring the default back on
+ * the next app load.
+ */
 export function seedDefaultWorkouts(): void {
-  const workouts = loadSavedWorkouts();
-  if (workouts.length === 0) {
+  if (localStorage.getItem(SEEDED_KEY)) return;
+  if (loadSavedWorkouts().length === 0) {
     addSavedWorkout(DEFAULT_FULL_BODY_WORKOUT);
   }
+  localStorage.setItem(SEEDED_KEY, 'true');
 }
 
 // Last Workout

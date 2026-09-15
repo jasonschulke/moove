@@ -8,6 +8,7 @@ import {
 } from '../data/storage';
 import { useExercises } from '../contexts/ExerciseContext';
 import { useToast } from '../contexts/ToastContext';
+import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS_CHAT, CLAUDE_MAX_TOKENS_SUGGESTIONS } from '../config';
 
 const SYSTEM_PROMPT = `You are a fitness assistant embedded in a workout tracking PWA. You can help users:
 
@@ -203,8 +204,8 @@ export function ClaudeChat() {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
+          model: CLAUDE_MODEL,
+          max_tokens: CLAUDE_MAX_TOKENS_CHAT,
           system: getSystemPrompt(),
           messages: newMessages.map(m => ({
             role: m.role,
@@ -274,8 +275,8 @@ export function ClaudeChat() {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 200,
+          model: CLAUDE_MODEL,
+          max_tokens: CLAUDE_MAX_TOKENS_SUGGESTIONS,
           messages: [{ role: 'user', content: summaryPrompt }],
         }),
       });

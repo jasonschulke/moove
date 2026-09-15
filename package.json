@@ -1,7 +1,7 @@
 {
-  "name": "workout-app",
+  "name": "moove",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,5 +33,6 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0"
-  }
+  },
+  "description": "Personal workout and habit tracking PWA"
 }
