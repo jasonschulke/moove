@@ -11,6 +11,7 @@ import { getTodayView } from '../data/today';
 import type { HabitStatus } from '../data/today';
 import { toggleHabit } from '../data/habits';
 import { toggleRestDay } from '../data/storage';
+import { say } from '../data/voice';
 import { CompletionRing } from '../components/CompletionRing';
 import { ScreenHeader } from '../components/ScreenHeader';
 
@@ -136,9 +137,10 @@ export function TodayPage({ activeWorkout }: TodayPageProps = {}) {
             <div className="min-w-0">
               <div className="mv-caps mb-1.5">Today</div>
               <div className="text-[14px] leading-snug" style={{ color: 'var(--mv-muted)' }}>
-                {view.completed === view.total
-                  ? 'The day is closed.'
-                  : `${view.total - view.completed} still open.`}
+                {say(view.daySituation, {
+                  open: view.total - view.completed,
+                  total: view.total,
+                }, undefined, view.dateStr)}
               </div>
             </div>
           </div>
@@ -149,7 +151,7 @@ export function TodayPage({ activeWorkout }: TodayPageProps = {}) {
             <div className="mv-caps mb-2">{view.isRest ? 'Rest day' : 'Next'}</div>
             {view.isRest ? (
               <div className="mv-serif text-[24px] leading-snug" style={{ color: 'var(--mv-ink)' }}>
-                Nothing owed.
+                {say('dayRest', {}, undefined, view.dateStr)}
               </div>
             ) : view.suggestion ? (
               <>
@@ -157,12 +159,16 @@ export function TodayPage({ activeWorkout }: TodayPageProps = {}) {
                   {view.suggestion.habit.name}
                 </div>
                 <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
-                  {view.suggestion.reason}
+                  {say(view.suggestion.situation, {
+                    owed: view.suggestion.owed,
+                    daysLeft: view.suggestion.daysLeft,
+                    habit: view.suggestion.habit.name,
+                  }, undefined, view.dateStr)}
                 </div>
               </>
             ) : (
               <div className="mv-serif text-[26px] leading-tight" style={{ color: 'var(--mv-ink)' }}>
-                Nothing left.
+                {say('allSettled', {}, undefined, view.dateStr)}
               </div>
             )}
           </div>

@@ -10,6 +10,7 @@ import type { Habit, HabitLogMap } from '../types/habits';
 import { loadHabits, dailyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
 import { startOfWeek, endOfWeek } from '../utils/week';
 import { formatLocalDate, isRestDay, loadRestDays } from './storage';
+import type { Situation } from './voice';
 
 export interface HabitBar {
   habit: Habit;
@@ -21,8 +22,10 @@ export interface HabitBar {
 export interface WeekReview {
   /** "8–14 September", or "29 September – 5 October" across a month boundary. */
   rangeLabel: string;
-  /** One sentence. The only serif on the screen. */
-  verdict: string;
+  /** How the week went, as a situation. The wording comes from voice.ts. */
+  situation: Situation;
+  /** The habit the verdict is about, when there is one. */
+  worstHabit: string | null;
   bars: HabitBar[];
   /** Days in the week that closed completely. */
   daysClosed: number;
@@ -85,23 +88,25 @@ export function formatWeekRange(date: Date): string {
 }
 
 /**
- * The verdict line. States what happened, then names the single worst miss,
- * because a percentage cannot say which thing keeps slipping.
+ * How the week went, and which habit the verdict should name. A percentage
+ * cannot say which thing keeps slipping, so the worst miss is called out by
+ * name; the wording of the sentence itself lives in voice.ts.
  */
-export function weekVerdict(daysClosed: number, daysCounted: number, bars: HabitBar[]): string {
+export function weekVerdict(
+  daysCounted: number,
+  bars: HabitBar[],
+): { situation: Situation; worstHabit: string | null } {
+  if (daysCounted === 0) return { situation: 'weekNotStarted', worstHabit: null };
+
   const missed = bars
     .filter(b => b.done < b.target)
     .sort((a, b) => (a.done / a.target) - (b.done / b.target));
 
-  if (daysCounted === 0) return 'The week has not started.';
-
-  const closed = daysClosed === daysCounted
-    ? `All ${daysCounted} closed.`
-    : `${daysClosed} of ${daysCounted} closed.`;
-
-  if (missed.length === 0) return `${closed} Nothing owed.`;
-  if (missed[0].done === 0) return `${closed} No ${missed[0].habit.name.toLowerCase()} yet.`;
-  return `${closed} ${missed[0].habit.name} is the gap.`;
+  if (missed.length === 0) return { situation: 'weekPerfect', worstHabit: null };
+  return {
+    situation: missed[0].done === 0 ? 'weekZero' : 'weekGap',
+    worstHabit: missed[0].habit.name,
+  };
 }
 
 export function getWeekReview(now: Date = new Date(), logs?: HabitLogMap): WeekReview {
@@ -125,9 +130,12 @@ export function getWeekReview(now: Date = new Date(), logs?: HabitLogMap): WeekR
     if (dayCompletion(dateStr, log) === 1) daysClosed++;
   }
 
+  const { situation, worstHabit } = weekVerdict(daysCounted, bars);
+
   return {
     rangeLabel: formatWeekRange(now),
-    verdict: weekVerdict(daysClosed, daysCounted, bars),
+    situation,
+    worstHabit,
     bars,
     daysClosed,
     daysCounted,

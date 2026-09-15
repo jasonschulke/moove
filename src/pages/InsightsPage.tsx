@@ -13,6 +13,7 @@ import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
 import { loadBodyMetrics } from '../data/storage';
+import { say } from '../data/voice';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
@@ -60,7 +61,11 @@ function WeekPanel({ now }: { now: Date }) {
     <div className="mv-card p-5">
       <div className="mv-caps mb-2">{review.rangeLabel}</div>
       <div className="mv-serif text-[23px] leading-snug mb-4" style={{ color: 'var(--mv-ink)' }}>
-        {review.verdict}
+        {say(review.situation, {
+          closed: review.daysClosed,
+          counted: review.daysCounted,
+          habit: review.worstHabit ?? undefined,
+        })}
       </div>
 
       {review.bars.map(b => (

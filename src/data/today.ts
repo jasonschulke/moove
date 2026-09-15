@@ -10,6 +10,7 @@ import type { Habit, HabitLogMap } from '../types/habits';
 import { loadHabits, dailyHabits, weeklyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
 import { daysLeftInWeek } from '../utils/week';
 import { formatLocalDate, isRestDay } from './storage';
+import type { Situation } from './voice';
 
 export interface HabitStatus {
   habit: Habit;
@@ -25,10 +26,15 @@ export interface HabitStatus {
 export interface Suggestion {
   habit: Habit;
   /**
-   * Why this one. Load-bearing: without it the suggestion is arbitrary and
-   * gets overridden every time.
+   * Why this one, as a situation rather than a sentence. Load-bearing:
+   * without a reason the suggestion is arbitrary and gets overridden every
+   * time. The wording comes from voice.ts so it can carry the user's tone.
    */
-  reason: string;
+  situation: Situation;
+  /** Times still owed, for the line to quote. */
+  owed: number;
+  /** Days from today through Sunday, for the line to quote. */
+  daysLeft: number;
 }
 
 export interface TodayView {
@@ -41,13 +47,23 @@ export interface TodayView {
   total: number;
   statuses: HabitStatus[];
   suggestion: Suggestion | null;
+  /** How the day is going, for the line beside the ring. */
+  daySituation: Situation;
 }
 
-/** The line under the suggestion. Three shapes, no more. */
-export function suggestionReason(owed: number, daysLeft: number): string {
-  if (daysLeft <= 1) return 'Last day of the week';
-  if (owed >= daysLeft) return 'Every remaining day';
-  return `${owed} left, ${daysLeft} days`;
+/** How much pressure a weekly debt is under. Three shapes, no more. */
+export function debtSituation(owed: number, daysLeft: number): Situation {
+  if (daysLeft <= 1) return 'debtLastDay';
+  if (owed >= daysLeft) return 'debtTight';
+  return 'debtComfortable';
+}
+
+/** How the day is going, for the line beside the ring. */
+export function daySituation(completed: number, total: number, isRest: boolean): Situation {
+  if (isRest) return 'dayRest';
+  if (completed === 0) return 'dayEmpty';
+  if (completed >= total) return 'dayClosed';
+  return 'dayPartial';
 }
 
 function weeklyTarget(habit: Habit): number {
@@ -84,6 +100,7 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
     statuses,
     // A rest day is a decision already made. Suggesting work would undo it.
     suggestion: isRest ? null : pickSuggestion(statuses, daysLeft),
+    daySituation: daySituation(completed, daily.length, isRest),
   };
 }
 
@@ -98,12 +115,13 @@ function pickSuggestion(statuses: HabitStatus[], daysLeft: number): Suggestion |
     .sort((a, b) => (b.owed / daysLeft) - (a.owed / daysLeft) || a.habit.order - b.habit.order);
 
   if (owing.length > 0) {
-    return { habit: owing[0].habit, reason: suggestionReason(owing[0].owed, daysLeft) };
+    const { habit, owed } = owing[0];
+    return { habit, situation: debtSituation(owed, daysLeft), owed, daysLeft };
   }
 
   const dailyIds = new Set(dailyHabits().map(h => h.id));
   const openDaily = statuses.find(s => dailyIds.has(s.habit.id) && !s.done);
-  if (openDaily) return { habit: openDaily.habit, reason: 'Still open today' };
+  if (openDaily) return { habit: openDaily.habit, situation: 'dailyOpen', owed: 0, daysLeft };
 
   return null;
 }

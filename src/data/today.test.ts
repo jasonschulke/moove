@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getTodayView, suggestionReason } from './today';
+import { getTodayView, debtSituation, daySituation } from './today';
 import type { HabitLogMap } from '../types/habits';
 
 // Tuesday 15 September 2026. Week is Mon 14 to Sun 20: six days left counting today.
@@ -7,20 +7,33 @@ const tuesday = () => new Date(2026, 8, 15, 12, 0, 0);
 
 beforeEach(() => { localStorage.clear(); });
 
-describe('suggestionReason', () => {
+describe('debtSituation', () => {
   it('names the last day of the week', () => {
-    expect(suggestionReason(1, 1)).toBe('Last day of the week');
-    expect(suggestionReason(3, 1)).toBe('Last day of the week');
+    expect(debtSituation(1, 1)).toBe('debtLastDay');
+    expect(debtSituation(3, 1)).toBe('debtLastDay');
   });
 
-  it('says every remaining day when the debt fills the week', () => {
-    expect(suggestionReason(3, 3)).toBe('Every remaining day');
-    expect(suggestionReason(4, 3)).toBe('Every remaining day');
+  it('is tight when the debt fills the week', () => {
+    expect(debtSituation(3, 3)).toBe('debtTight');
+    expect(debtSituation(4, 3)).toBe('debtTight');
   });
 
-  it('otherwise gives the count and the room left', () => {
-    expect(suggestionReason(2, 6)).toBe('2 left, 6 days');
-    expect(suggestionReason(1, 4)).toBe('1 left, 4 days');
+  it('is comfortable when there is room', () => {
+    expect(debtSituation(2, 6)).toBe('debtComfortable');
+    expect(debtSituation(1, 4)).toBe('debtComfortable');
+  });
+});
+
+describe('daySituation', () => {
+  it('reads the day', () => {
+    expect(daySituation(0, 3, false)).toBe('dayEmpty');
+    expect(daySituation(1, 3, false)).toBe('dayPartial');
+    expect(daySituation(3, 3, false)).toBe('dayClosed');
+  });
+
+  it('a rest day overrides the rest', () => {
+    expect(daySituation(0, 3, true)).toBe('dayRest');
+    expect(daySituation(3, 3, true)).toBe('dayRest');
   });
 });
 
@@ -75,7 +88,9 @@ describe('getTodayView suggestion', () => {
     // Lift owes 3 over 6 days (0.5). Run owes 1 over 6 days (0.17).
     const view = getTodayView(tuesday(), {});
     expect(view.suggestion?.habit.id).toBe('lift');
-    expect(view.suggestion?.reason).toBe('3 left, 6 days');
+    expect(view.suggestion?.situation).toBe('debtComfortable');
+    expect(view.suggestion?.owed).toBe(3);
+    expect(view.suggestion?.daysLeft).toBe(6);
   });
 
   it('switches to the run once the lift debt is cleared', () => {
@@ -91,7 +106,7 @@ describe('getTodayView suggestion', () => {
     };
     const view = getTodayView(tuesday(), logs);
     expect(view.suggestion?.habit.id).toBe('walk');
-    expect(view.suggestion?.reason).toBe('Still open today');
+    expect(view.suggestion?.situation).toBe('dailyOpen');
   });
 
   it('suggests nothing when everything is settled', () => {
