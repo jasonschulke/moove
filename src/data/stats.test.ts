@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WorkoutSession } from '../types';
 import { saveSessions } from './storage';
 import { getWorkoutStats, getYearlyContributions } from './stats';
@@ -45,12 +45,20 @@ describe('getWorkoutStats', () => {
     expect(getWorkoutStats().totalWorkouts).toBe(1);
   });
 
-  it('counts a rolling week and month', () => {
-    saveSessions([session(0), session(3), session(10), session(60)]);
-    const stats = getWorkoutStats();
-    expect(stats.totalWorkouts).toBe(4);
-    expect(stats.thisWeek).toBe(2);
-    expect(stats.thisMonth).toBe(3);
+  it('counts the calendar week and a rolling month', () => {
+    // Pinned to Thursday 17 September 2026 so the assertion does not depend on
+    // what day of the week the suite happens to run. That week is Mon 14 to
+    // Sun 20, so today and three days ago are both inside it.
+    vi.setSystemTime(new Date(2026, 8, 17, 12, 0, 0));
+    try {
+      saveSessions([session(0), session(3), session(10), session(60)]);
+      const stats = getWorkoutStats();
+      expect(stats.totalWorkouts).toBe(4);
+      expect(stats.thisWeek).toBe(2);
+      expect(stats.thisMonth).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('averages duration over sessions that recorded one', () => {
@@ -144,5 +152,33 @@ describe('getYearlyContributions', () => {
     const map = getYearlyContributions();
     const zeroDays = [...map.values()].filter(v => v.count === 0);
     expect(zeroDays.length).toBe(364);
+  });
+});
+
+describe('getWorkoutStats thisWeek', () => {
+  // setSystemTime alone mocks only Date, not the timer queue, which is what
+  // we want here. Restored after each test so the relative-date helpers in
+  // the rest of this file keep working.
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('counts from Monday, not a rolling seven days', () => {
+    vi.setSystemTime(new Date(2026, 8, 15, 12, 0, 0)); // Tuesday; week is Mon 14 to Sun 20
+
+    const onDay = (id: string, day: number): WorkoutSession => ({
+      id,
+      name: id,
+      blocks: [],
+      exercises: [],
+      startedAt: new Date(2026, 8, day, 10, 0, 0).toISOString(),
+      completedAt: new Date(2026, 8, day, 11, 0, 0).toISOString(),
+    });
+
+    saveSessions([
+      onDay('a', 13), // Sunday, last week: inside a rolling 7 days, outside this week
+      onDay('b', 14), // Monday, this week
+      onDay('c', 15), // today
+    ]);
+
+    expect(getWorkoutStats().thisWeek).toBe(2);
   });
 });
