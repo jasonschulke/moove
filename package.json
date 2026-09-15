@@ -1,14 +1,16 @@
 {
-  "name": "workout-app",
+  "name": "moove",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "icons": "node scripts/fetch-icons.cjs"
+    "icons": "node scripts/fetch-icons.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.93.3",
@@ -17,7 +19,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@netlify/blobs": "^10.5.0",
     "@netlify/functions": "^5.1.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
@@ -28,11 +29,14 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^30.0.1",
     "oauth-1.0a": "^2.2.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
-    "vite-plugin-pwa": "^1.2.0"
-  }
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^5.0.0"
+  },
+  "description": "Personal workout and habit tracking PWA"
 }

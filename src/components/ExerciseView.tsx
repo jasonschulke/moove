@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { WorkoutExercise, ExerciseLog } from '../types';
 import { getExerciseById, getAlternatives } from '../data/exercises';
-import { getLastWeekAverages, getDefaultWeightForEquipment, getExerciseHistory } from '../data/storage';
+import { getDefaultWeightForEquipment } from '../data/storage';
+import { getLastWeekAverages, getExerciseHistory } from '../data/stats';
 import { fetchExerciseGif } from '../utils/exerciseGifs';
 import { Timer } from './Timer';
 import { Sparkline } from './Sparkline';

@@ -5,9 +5,8 @@
  * Cloud sync is available but disabled by default to prevent data sharing.
  */
 
-import type { WorkoutSession, ExerciseLog, SavedWorkout, WorkoutBlock } from '../types';
+import type { WorkoutSession, SavedWorkout } from '../types';
 import { generateUUID } from '../utils/uuid';
-import { getDeviceId } from './sync';
 import { supabase } from '../lib/supabase';
 import { scheduleSyncToCloud } from './supabaseSync';
 
@@ -41,6 +40,7 @@ const PERSONALITY_KEY = 'workout_personality';     // AI personality preference
 const FAVORITES_KEY = 'workout_favorites';         // Favorited workouts/exercises
 const SKIP_COUNTS_KEY = 'workout_skip_counts';     // Skip/swap tracking
 const CUSTOM_DESCRIPTIONS_KEY = 'workout_custom_descriptions'; // User exercise notes
+const SEEDED_KEY = 'workout_defaults_seeded';      // Default workout seeded once
 
 // ============================================================================
 // DATE UTILITIES
@@ -60,9 +60,6 @@ export function formatLocalDate(date: Date): string {
 
 export function saveUserName(name: string): void {
   localStorage.setItem(USER_NAME_KEY, name);
-  // Log user identity for analytics
-  const deviceId = getDeviceId();
-  console.log('[Moove] User identity:', { deviceId, userName: name, timestamp: new Date().toISOString() });
   triggerSyncIfLoggedIn();
 }
 
@@ -212,199 +209,20 @@ const DEFAULT_FULL_BODY_WORKOUT: Omit<SavedWorkout, 'id' | 'createdAt' | 'update
   ],
 };
 
+/**
+ * Seed the default workout, once per install.
+ *
+ * Guarded by a flag rather than by an empty library, so that deliberately
+ * deleting every saved workout does not silently bring the default back on
+ * the next app load.
+ */
 export function seedDefaultWorkouts(): void {
-  const workouts = loadSavedWorkouts();
-  if (workouts.length === 0) {
+  if (localStorage.getItem(SEEDED_KEY)) return;
+  if (loadSavedWorkouts().length === 0) {
     addSavedWorkout(DEFAULT_FULL_BODY_WORKOUT);
   }
+  localStorage.setItem(SEEDED_KEY, 'true');
 }
-
-// Last Workout
-export function getLastWorkout(): { blocks: WorkoutBlock[]; completedAt: string } | null {
-  const sessions = loadSessions().filter(s => s.completedAt && s.blocks?.length > 0);
-  if (sessions.length === 0) return null;
-  return {
-    blocks: sessions[0].blocks,
-    completedAt: sessions[0].completedAt!,
-  };
-}
-
-export function getExerciseHistory(exerciseId: string, limit = 10): ExerciseLog[] {
-  const sessions = loadSessions();
-  const history: ExerciseLog[] = [];
-
-  for (const session of sessions) {
-    for (const log of session.exercises) {
-      if (log.exerciseId === exerciseId) {
-        history.push(log);
-        if (history.length >= limit) return history;
-      }
-    }
-  }
-
-  return history;
-}
-
-export function getLastWeekAverages(exerciseId: string): { avgWeight: number; avgReps: number } | null {
-  const sessions = loadSessions();
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-  const recentLogs = sessions
-    .filter(s => new Date(s.startedAt) >= oneWeekAgo)
-    .flatMap(s => s.exercises)
-    .filter(e => e.exerciseId === exerciseId);
-
-  if (recentLogs.length === 0) return null;
-
-  const weights = recentLogs.filter(l => l.weight).map(l => l.weight!);
-  const reps = recentLogs.filter(l => typeof l.reps === 'number').map(l => l.reps as number);
-
-  return {
-    avgWeight: weights.length > 0 ? Math.round(weights.reduce((a, b) => a + b, 0) / weights.length) : 0,
-    avgReps: reps.length > 0 ? Math.round(reps.reduce((a, b) => a + b, 0) / reps.length) : 0,
-  };
-}
-
-// Get workout dates for the current week (for checkmark display)
-export function getThisWeekWorkoutDates(): Set<string> {
-  const sessions = loadSessions().filter(s => s.completedAt);
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Start from Sunday
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const dates = new Set<string>();
-  sessions.forEach(s => {
-    const sessionDate = new Date(s.startedAt);
-    if (sessionDate >= startOfWeek) {
-      dates.add(sessionDate.toDateString());
-    }
-  });
-  return dates;
-}
-
-/** Workout type info for calendar display */
-export interface DayWorkoutInfo {
-  count: number;
-  hasCardio: boolean;
-  hasStrength: boolean;
-}
-
-// Get yearly contribution data (GitHub-style grid)
-export function getYearlyContributions(): Map<string, DayWorkoutInfo> {
-  const sessions = loadSessions().filter(s => s.completedAt);
-  const contributions = new Map<string, DayWorkoutInfo>();
-
-  // Get dates for the last 365 days
-  const now = new Date();
-  for (let i = 364; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    const dateStr = formatLocalDate(date);
-    contributions.set(dateStr, { count: 0, hasCardio: false, hasStrength: false });
-  }
-
-  // Count workouts per day and track type
-  sessions.forEach(s => {
-    const dateStr = formatLocalDate(new Date(s.startedAt));
-    if (contributions.has(dateStr)) {
-      const current = contributions.get(dateStr)!;
-      current.count++;
-      if (s.cardioType) {
-        current.hasCardio = true;
-      } else if (s.exercises.length > 0) {
-        current.hasStrength = true;
-      }
-    }
-  });
-
-  return contributions;
-}
-
-export function getWorkoutStats(): {
-  totalWorkouts: number;
-  thisWeek: number;
-  thisMonth: number;
-  avgDuration: number;
-  longestStreak: number;
-  currentStreak: number;
-  workoutsByDay: Record<number, number>;
-} {
-  const sessions = loadSessions().filter(s => s.completedAt);
-
-  const now = new Date();
-  const oneWeekAgo = new Date(now);
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  const oneMonthAgo = new Date(now);
-  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-  const thisWeek = sessions.filter(s => new Date(s.startedAt) >= oneWeekAgo).length;
-  const thisMonth = sessions.filter(s => new Date(s.startedAt) >= oneMonthAgo).length;
-
-  const durations = sessions
-    .filter(s => s.totalDuration)
-    .map(s => s.totalDuration!);
-  const avgDuration = durations.length > 0
-    ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-    : 0;
-
-  // Calculate streaks
-  const sortedDates = [...new Set(
-    sessions.map(s => new Date(s.startedAt).toDateString())
-  )].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 0;
-
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-
-  for (let i = 0; i < sortedDates.length; i++) {
-    const date = sortedDates[i];
-    const prevDate = i > 0 ? sortedDates[i - 1] : null;
-
-    if (i === 0) {
-      if (date === today || date === yesterday) {
-        currentStreak = 1;
-        tempStreak = 1;
-      }
-    } else if (prevDate) {
-      const diff = new Date(prevDate).getTime() - new Date(date).getTime();
-      if (diff <= 86400000 * 1.5) {
-        tempStreak++;
-        if (i < sortedDates.length && (sortedDates[0] === today || sortedDates[0] === yesterday)) {
-          currentStreak = tempStreak;
-        }
-      } else {
-        tempStreak = 1;
-      }
-    }
-    longestStreak = Math.max(longestStreak, tempStreak);
-  }
-
-  // Workouts by day of week (0 = Sunday)
-  const workoutsByDay: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-  sessions.forEach(s => {
-    const day = new Date(s.startedAt).getDay();
-    workoutsByDay[day]++;
-  });
-
-  return {
-    totalWorkouts: sessions.length,
-    thisWeek,
-    thisMonth,
-    avgDuration,
-    longestStreak,
-    currentStreak,
-    workoutsByDay,
-  };
-}
-
-// ============================================================================
-// REST DAYS
-// ============================================================================
 
 export function loadRestDays(): Set<string> {
   const data = localStorage.getItem(REST_DAYS_KEY);
@@ -469,15 +287,20 @@ export function deleteCustomExercise(id: string): void {
 // CLAUDE AI CHAT
 // ============================================================================
 
-// Fallback API key (base64 encoded + reversed for basic obfuscation)
-const _k = () => atob('QUFBXzlkeDUtQWo5ZTdWUTBsNmNGTjhkVGk2NFJuZ2lDN2hKc2ZHZmhSMm1qVXRacW9heHlSWlA1YWJxWHdzeE14dzVFRGJROUdoRFdDQ2FtX1pMcUJxN1ZXOFRFTEwtMzBpcGEtdG5hLWtz').split('').reverse().join('');
-
+/**
+ * The user's own Anthropic API key, or null if they have not set one.
+ *
+ * There was previously an embedded fallback key here, base64-encoded and
+ * reversed. That is an encoding, not a secret: it shipped in the browser
+ * bundle and was recoverable by anyone who opened the deployed site. It has
+ * been removed and the key it contained should be treated as compromised.
+ *
+ * Nothing should reintroduce a key here. Anything that needs to call the
+ * Anthropic API without the user supplying their own key belongs behind a
+ * server-side proxy where the secret never reaches the client.
+ */
 export function getClaudeApiKey(): string | null {
-  // User's own key takes priority
-  const userKey = localStorage.getItem(CLAUDE_API_KEY);
-  if (userKey) return userKey;
-  // Fallback to embedded key
-  return _k();
+  return localStorage.getItem(CLAUDE_API_KEY);
 }
 
 export function setClaudeApiKey(key: string): void {
@@ -562,38 +385,6 @@ export function hasRealWorkoutOnDate(dateStr: string): boolean {
   });
 }
 
-// Get effort data over time for chart
-export function getEffortHistory(limit = 20): { date: string; effort: number }[] {
-  const sessions = loadSessions()
-    .filter(s => s.completedAt && s.overallEffort)
-    .slice(0, limit)
-    .reverse();
-
-  return sessions.map(s => ({
-    date: new Date(s.completedAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    effort: s.overallEffort!,
-  }));
-}
-
-// Backfill effort scores for workouts that don't have them
-export function backfillEffortScores(): void {
-  const sessions = loadSessions();
-  let updated = false;
-
-  const updatedSessions = sessions.map(session => {
-    if (session.completedAt && !session.overallEffort) {
-      updated = true;
-      // Random effort in 4-6 range
-      const randomEffort = Math.floor(Math.random() * 3) + 4;
-      return { ...session, overallEffort: randomEffort as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 };
-    }
-    return session;
-  });
-
-  if (updated) {
-    saveSessions(updatedSessions);
-  }
-}
 
 // Toggle year overview status: none -> workout -> rest -> none
 // Protects real workouts from being removed
@@ -870,69 +661,6 @@ export function incrementSwapCount(exerciseId: string): void {
   saveSkipCounts(counts);
 }
 
-export function getMostSkippedExercises(limit = 5): { exerciseId: string; skips: number; swaps: number }[] {
-  const counts = loadSkipCounts();
-  return Object.entries(counts)
-    .map(([exerciseId, data]) => ({ exerciseId, ...data }))
-    .sort((a, b) => (b.skips + b.swaps) - (a.skips + a.swaps))
-    .slice(0, limit);
-}
-
-// Get workout sessions for a specific date
-export function getSessionsByDate(dateStr: string): WorkoutSession[] {
-  const sessions = loadSessions().filter(s => s.completedAt);
-  return sessions.filter(s => {
-    const sessionDate = formatLocalDate(new Date(s.startedAt));
-    return sessionDate === dateStr;
-  });
-}
-
-// Get most used workouts based on frequency
-export function getMostUsedWorkouts(limit = 10): { workoutName: string; count: number; lastUsed: string }[] {
-  const sessions = loadSessions().filter(s => s.completedAt && s.name);
-  const counts = new Map<string, { count: number; lastUsed: string }>();
-
-  sessions.forEach(s => {
-    const existing = counts.get(s.name) || { count: 0, lastUsed: '' };
-    existing.count++;
-    if (!existing.lastUsed || new Date(s.completedAt!) > new Date(existing.lastUsed)) {
-      existing.lastUsed = s.completedAt!;
-    }
-    counts.set(s.name, existing);
-  });
-
-  return Array.from(counts.entries())
-    .map(([workoutName, data]) => ({ workoutName, ...data }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
-}
-
-// Get most used exercises based on frequency
-export function getMostUsedExercises(limit = 10): { exerciseId: string; count: number; lastUsed: string }[] {
-  const sessions = loadSessions().filter(s => s.completedAt);
-  const counts = new Map<string, { count: number; lastUsed: string }>();
-
-  sessions.forEach(s => {
-    s.exercises.forEach(ex => {
-      const existing = counts.get(ex.exerciseId) || { count: 0, lastUsed: '' };
-      existing.count++;
-      if (!existing.lastUsed || new Date(ex.completedAt) > new Date(existing.lastUsed)) {
-        existing.lastUsed = ex.completedAt;
-      }
-      counts.set(ex.exerciseId, existing);
-    });
-  });
-
-  return Array.from(counts.entries())
-    .map(([exerciseId, data]) => ({ exerciseId, ...data }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
-}
-
-// ============================================================================
-// CUSTOM DESCRIPTIONS
-// ============================================================================
-
 export interface CustomDescriptions {
   exercises: Record<string, string>; // exerciseId -> custom description
   workouts: Record<string, string>;  // workoutId -> custom description
@@ -1078,59 +806,6 @@ export function importWorkoutSessions(newSessions: WorkoutSession[], overwrite =
 
 // ============================================================================
 // DATA EXPORT
-// ============================================================================
-
-export function exportAllDataAsJSON(): string {
-  const data = {
-    exportDate: new Date().toISOString(),
-    sessions: loadSessions(),
-    savedWorkouts: loadSavedWorkouts(),
-    customExercises: loadCustomExercises(),
-    favorites: loadFavorites(),
-    skipCounts: loadSkipCounts(),
-    customDescriptions: loadCustomDescriptions(),
-    restDays: [...loadRestDays()],
-    equipmentConfig: loadEquipmentConfig(),
-    personality: loadPersonality(),
-    userName: loadUserName(),
-  };
-  return JSON.stringify(data, null, 2);
-}
-
-export function exportWorkoutsAsCSV(): string {
-  const sessions = loadSessions().filter(s => s.completedAt);
-  const lines: string[] = ['Date,Workout Name,Duration (min),Effort,Exercises Completed'];
-
-  sessions.forEach(s => {
-    const date = new Date(s.completedAt!).toLocaleDateString();
-    const duration = s.totalDuration ? Math.round(s.totalDuration / 60) : '';
-    const effort = s.overallEffort || '';
-    const exerciseCount = s.exercises.length;
-    lines.push(`"${date}","${s.name}",${duration},${effort},${exerciseCount}`);
-  });
-
-  return lines.join('\n');
-}
-
-export function exportExerciseLogsAsCSV(): string {
-  const sessions = loadSessions().filter(s => s.completedAt);
-  const lines: string[] = ['Date,Workout,Exercise,Weight (lb),Reps,Duration (s)'];
-
-  sessions.forEach(s => {
-    const date = new Date(s.completedAt!).toLocaleDateString();
-    s.exercises.forEach(ex => {
-      const weight = ex.weight || '';
-      const reps = ex.reps || '';
-      const duration = ex.duration || '';
-      lines.push(`"${date}","${s.name}","${ex.exerciseId}",${weight},${reps},${duration}`);
-    });
-  });
-
-  return lines.join('\n');
-}
-
-// ============================================================================
-// DATA MANAGEMENT
 // ============================================================================
 
 /** Clear all app data from localStorage */

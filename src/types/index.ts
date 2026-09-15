@@ -168,16 +168,13 @@ export interface WorkoutSession {
   // Cardio-specific fields
   cardioType?: CardioType;       // If set, this is a cardio workout
   distance?: number;             // Distance in miles
-}
 
-/** State for tracking position within an active workout */
-export interface WorkoutState {
-  currentSession: WorkoutSession | null;
-  currentBlockIndex: number;
-  currentExerciseIndex: number;
-  currentSetIndex: number;
-  isTimerActive: boolean;
-  timerSeconds: number;
+  // Navigation state. Only meaningful on the in-progress session, which is
+  // persisted to localStorage so an interrupted workout resumes in place.
+  // Stripped before a session is written to completed history.
+  currentBlockIndex?: number;
+  currentExerciseIndex?: number;
+  swappedExercises?: Record<string, string>;
 }
 
 // ============================================================================

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { WorkoutBlock, SavedWorkout, CardioType, BlockType } from '../types';
 import { CARDIO_TYPE_LABELS } from '../types';
-import { getLastWorkout, loadSavedWorkouts } from '../data/storage';
+import { loadSavedWorkouts } from '../data/storage';
+import { getLastWorkout } from '../data/stats';
 import { getExerciseById } from '../data/exercises';
 
 // Material icons for cardio types with colors

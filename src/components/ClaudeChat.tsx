@@ -1,13 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Exercise, MuscleArea, EquipmentType } from '../types';
-import {
-  getClaudeApiKey,
-  loadChatHistory,
-  saveChatHistory,
-  type ChatMessage,
-} from '../data/storage';
+import { loadChatHistory, saveChatHistory, type ChatMessage } from '../data/storage';
 import { useExercises } from '../contexts/ExerciseContext';
 import { useToast } from '../contexts/ToastContext';
+import { CLAUDE_MAX_TOKENS_CHAT, CLAUDE_MAX_TOKENS_SUGGESTIONS } from '../config';
+import { sendToClaude, isClaudeAvailable } from '../lib/claudeClient';
 
 const SYSTEM_PROMPT = `You are a fitness assistant embedded in a workout tracking PWA. You can help users:
 
@@ -59,7 +56,7 @@ export function ClaudeChat() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  const apiKey = getClaudeApiKey();
+  const canUseCoach = isClaudeAvailable();
   const { customExercises, addExercise } = useExercises();
   const { showToast } = useToast();
 
@@ -179,7 +176,7 @@ export function ClaudeChat() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !apiKey || isLoading) return;
+    if (!input.trim() || !canUseCoach || isLoading) return;
 
     const userMessage: ChatMessage = {
       role: 'user',
@@ -194,32 +191,11 @@ export function ClaudeChat() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: getSystemPrompt(),
-          messages: newMessages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const assistantContent = data.content[0]?.text || 'No response';
+      const assistantContent = (await sendToClaude({
+        system: getSystemPrompt(),
+        maxTokens: CLAUDE_MAX_TOKENS_CHAT,
+        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+      })) || 'No response';
 
       // Check if response contains exercises to add
       const parsedExercises = parseExercisesFromResponse(assistantContent);
@@ -258,30 +234,17 @@ export function ClaudeChat() {
   };
 
   const handleSendFeedback = async () => {
-    if (!feedbackText.trim() || !apiKey) return;
+    if (!feedbackText.trim() || !canUseCoach) return;
     setIsSendingFeedback(true);
 
     try {
       // Generate AI summary using Claude
       const summaryPrompt = `Summarize this user feedback in 1-2 sentences for a developer email. Be concise and clear about the main point:\n\nType: ${feedbackType}\nFeedback: ${feedbackText}`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 200,
-          messages: [{ role: 'user', content: summaryPrompt }],
-        }),
-      });
-
-      const data = await response.json();
-      const summary = data.content?.[0]?.text || feedbackText;
+      const summary = (await sendToClaude({
+        maxTokens: CLAUDE_MAX_TOKENS_SUGGESTIONS,
+        messages: [{ role: 'user', content: summaryPrompt }],
+      })) || feedbackText;
 
       // Send email via mailto link
       const subject = encodeURIComponent(`Moove Feedback: ${feedbackType}`);
@@ -301,7 +264,7 @@ export function ClaudeChat() {
     }
   };
 
-  if (!apiKey) {
+  if (!canUseCoach) {
     return (
       <div className="min-h-screen pb-20 flex flex-col bg-slate-100 dark:bg-slate-950">
         <header className="px-4 pt-16 pb-4 safe-top">
@@ -317,9 +280,9 @@ export function ClaudeChat() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
             </div>
-            <h2 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">API Key Required</h2>
+            <h2 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">Coach unavailable</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-6">
-              Add your Claude API key in Settings to use the assistant.
+              Add your Anthropic API key in Settings to use the coach.
             </p>
           </div>
         </div>

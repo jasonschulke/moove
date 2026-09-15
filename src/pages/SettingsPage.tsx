@@ -1,21 +1,7 @@
 import { useState, useEffect } from 'react';
-import {
-  getClaudeApiKey,
-  setClaudeApiKey,
-  clearClaudeApiKey,
-  loadCustomExercises,
-  deleteCustomExercise,
-  clearChatHistory,
-  loadPersonality,
-  savePersonality,
-  loadUserName,
-  saveUserName,
-  exportAllDataAsJSON,
-  exportWorkoutsAsCSV,
-  exportExerciseLogsAsCSV,
-  clearAllData,
-} from '../data/storage';
-import { getDeviceId } from '../data/sync';
+import { getClaudeApiKey, setClaudeApiKey, clearClaudeApiKey, loadCustomExercises, deleteCustomExercise, clearChatHistory, loadPersonality, savePersonality, loadUserName, saveUserName, clearAllData } from '../data/storage';
+import { exportAllDataAsJSON, exportWorkoutsAsCSV, exportExerciseLogsAsCSV } from '../data/export';
+import { getDeviceId } from '../utils/deviceId';
 import { deleteAllCloudData } from '../data/supabaseSync';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthModal } from '../components/AuthModal';
