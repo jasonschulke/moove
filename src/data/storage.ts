@@ -385,25 +385,6 @@ export function hasRealWorkoutOnDate(dateStr: string): boolean {
   });
 }
 
-// Backfill effort scores for workouts that don't have them
-export function backfillEffortScores(): void {
-  const sessions = loadSessions();
-  let updated = false;
-
-  const updatedSessions = sessions.map(session => {
-    if (session.completedAt && !session.overallEffort) {
-      updated = true;
-      // Random effort in 4-6 range
-      const randomEffort = Math.floor(Math.random() * 3) + 4;
-      return { ...session, overallEffort: randomEffort as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 };
-    }
-    return session;
-  });
-
-  if (updated) {
-    saveSessions(updatedSessions);
-  }
-}
 
 // Toggle year overview status: none -> workout -> rest -> none
 // Protects real workouts from being removed

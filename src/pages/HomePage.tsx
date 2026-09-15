@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { loadRestDays, saveRestDays, toggleYearDayStatus, hasWorkoutOnDate, hasRealWorkoutOnDate, addBacklogWorkout, backfillEffortScores, loadUserName, loadPersonality, formatLocalDate } from '../data/storage';
+import { loadRestDays, saveRestDays, toggleYearDayStatus, hasWorkoutOnDate, hasRealWorkoutOnDate, addBacklogWorkout, loadUserName, loadPersonality, formatLocalDate } from '../data/storage';
 import { getWorkoutStats, getThisWeekWorkoutDates, getYearlyContributions, getEffortHistory, getMostSkippedExercises, getSessionsByDate, getMostUsedExercises } from '../data/stats';
 import { EffortChart } from '../components/EffortChart';
 import { getExerciseById } from '../data/exercises';
@@ -80,17 +80,11 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    // Add backlog workouts for specified dates (only if not already present)
-    const backlogDates = ['2026-01-06', '2026-01-07', '2026-01-20', '2026-01-21', '2026-01-23', '2026-01-24'];
-    backlogDates.forEach(dateStr => {
-      if (!hasWorkoutOnDate(dateStr)) {
-        addBacklogWorkout(dateStr);
-      }
-    });
-
-    // Backfill effort scores for workouts that don't have them
-    backfillEffortScores();
-
+    // This used to inject six hardcoded "Backlog Workout" sessions dated
+    // January 2026 on every mount, and to fill missing effort ratings with
+    // random numbers between 4 and 6. Both were dev scaffolding that shipped:
+    // they put workouts you never did into your streaks and contribution
+    // graph, and made the effort chart partly fictional. Removed.
     refreshData();
   }, [refreshData]);
 
