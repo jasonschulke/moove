@@ -10,9 +10,12 @@ import { WorkoutBuilder } from '../components/WorkoutBuilder';
 import { ExerciseCard } from '../components/ExerciseCard';
 import { EditableDescription } from '../components/EditableDescription';
 import { EquipmentGallery } from '../components/EquipmentGallery';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 interface LibraryPageProps {
   onStartWorkout: (blocks: WorkoutBlock[]) => void;
+  /** Opens the start flow, which is where cardio and "repeat last" live. */
+  onOpenWorkoutFlow: () => void;
 }
 
 type TabType = 'workouts' | 'exercises' | 'history' | 'equipment';
@@ -41,7 +44,7 @@ const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'full-body', label: 'Full Body' },
 ];
 
-export function LibraryPage({ onStartWorkout }: LibraryPageProps) {
+export function LibraryPage({ onStartWorkout, onOpenWorkoutFlow }: LibraryPageProps) {
   const { triggerSignUpPrompt } = useSignUpPrompt();
   const { exercises, addExercise, updateExercise, deleteExercise, getExerciseById } = useExercises();
   const [activeTab, setActiveTab] = useState<TabType>('workouts');
@@ -1045,12 +1048,7 @@ export function LibraryPage({ onStartWorkout }: LibraryPageProps) {
 
   return (
     <div className="min-h-screen pb-24 bg-slate-100 dark:bg-slate-950">
-      <header className="px-4 pt-16 pb-4 safe-top bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
-          <img src="/library.svg" alt="Library" className="h-5 dark:invert" />
-        </div>
-      </header>
+      <ScreenHeader wordmark="/library.svg" alt="Library" />
 
       {/* Tabs */}
       <div className="px-4 mb-4 mt-4">
@@ -1101,8 +1099,19 @@ export function LibraryPage({ onStartWorkout }: LibraryPageProps) {
       {/* Workouts Tab */}
       {activeTab === 'workouts' && (
         <div className="px-4">
+          {/* Workout is no longer a tab, so this is the way in to the start
+              flow: repeat the last session, or go for a walk, run or hike. */}
           <Button
             variant="primary"
+            size="lg"
+            onClick={onOpenWorkoutFlow}
+            className="w-full mb-3"
+          >
+            Start a Workout
+          </Button>
+
+          <Button
+            variant="secondary"
             size="lg"
             onClick={handleCreateNew}
             className="w-full mb-4"

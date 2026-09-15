@@ -9,6 +9,7 @@ import { Button } from '../components/Button';
 import { HealthImport } from '../components/HealthImport';
 import type { Exercise, PersonalityType } from '../types';
 import { PERSONALITY_OPTIONS } from '../types';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 interface SettingsPageProps {
   theme: 'dark' | 'light';
@@ -122,12 +123,7 @@ export function SettingsPage({ theme, onToggleTheme }: SettingsPageProps) {
 
   return (
     <div className="min-h-screen pb-24 bg-slate-100 dark:bg-slate-950">
-      <header className="px-4 pt-16 pb-4 safe-top bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
-          <img src="/settings.svg" alt="Settings" className="h-5 dark:invert" />
-        </div>
-      </header>
+      <ScreenHeader wordmark="/settings.svg" alt="Settings" />
 
       <div className="px-4 space-y-6 mt-4">
         {/* ACCOUNT Section */}

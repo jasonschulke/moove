@@ -28,16 +28,16 @@ export function CompletionRing({ completed, total, size = 128 }: CompletionRingP
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke="var(--today-track)" strokeWidth={stroke} />
+          stroke="var(--mv-track)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke="var(--today-green)" strokeWidth={stroke} strokeLinecap="round"
+          stroke="var(--mv-green)" strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circumference} strokeDashoffset={offset}
           style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.16, 0.8, 0.3, 1)' }} />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="today-serif leading-none"
-          style={{ fontSize: size * 0.3, color: 'var(--today-ink)' }}>
-          {completed}<span style={{ color: 'var(--today-faint)' }}>/{total}</span>
+        <span className="mv-serif leading-none"
+          style={{ fontSize: size * 0.3, color: 'var(--mv-ink)' }}>
+          {completed}<span style={{ color: 'var(--mv-faint)' }}>/{total}</span>
         </span>
       </div>
     </div>
