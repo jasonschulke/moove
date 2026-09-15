@@ -11,6 +11,7 @@ import { ExerciseCard } from '../components/ExerciseCard';
 import { EditableDescription } from '../components/EditableDescription';
 import { EquipmentGallery } from '../components/EquipmentGallery';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { HabitManager } from '../components/HabitManager';
 
 interface LibraryPageProps {
   onStartWorkout: (blocks: WorkoutBlock[]) => void;
@@ -18,7 +19,7 @@ interface LibraryPageProps {
   onOpenWorkoutFlow: () => void;
 }
 
-type TabType = 'workouts' | 'exercises' | 'history' | 'equipment';
+type TabType = 'habits' | 'workouts' | 'exercises' | 'history' | 'equipment';
 
 type SourceFilter = 'all' | 'default' | 'custom' | 'favorites';
 type TypeFilter = 'all' | MuscleArea;
@@ -47,7 +48,7 @@ const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
 export function LibraryPage({ onStartWorkout, onOpenWorkoutFlow }: LibraryPageProps) {
   const { triggerSignUpPrompt } = useSignUpPrompt();
   const { exercises, addExercise, updateExercise, deleteExercise, getExerciseById } = useExercises();
-  const [activeTab, setActiveTab] = useState<TabType>('workouts');
+  const [activeTab, setActiveTab] = useState<TabType>('habits');
 
   // Workouts state
   const [workouts, setWorkouts] = useState(() => loadSavedWorkouts());
@@ -1053,48 +1054,29 @@ export function LibraryPage({ onStartWorkout, onOpenWorkoutFlow }: LibraryPagePr
       {/* Tabs */}
       <div className="px-4 mb-4 mt-4">
         <div className="flex rounded-xl bg-slate-200 dark:bg-slate-800 p-1">
-          <button
-            onClick={() => setActiveTab('workouts')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'workouts'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            Workouts
-          </button>
-          <button
-            onClick={() => setActiveTab('exercises')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'exercises'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            Exercises
-          </button>
-          <button
-            onClick={() => setActiveTab('equipment')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'equipment'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            Gear
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'history'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            History
-          </button>
+          {([
+            ['habits', 'Habits'],
+            ['workouts', 'Workouts'],
+            ['exercises', 'Exercises'],
+            ['equipment', 'Gear'],
+            ['history', 'History'],
+          ] as [TabType, string][]).map(([tab, label]) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2.5 px-1 rounded-lg text-[12.5px] font-medium transition-colors ${
+                activeTab === tab
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
+
+      {activeTab === 'habits' && <HabitManager />}
 
       {/* Workouts Tab */}
       {activeTab === 'workouts' && (

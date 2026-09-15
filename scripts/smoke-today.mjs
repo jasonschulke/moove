@@ -68,6 +68,7 @@ check('finishing the tour lands on Today', await ring().isVisible().catch(() => 
 await page.evaluate(() => {
   localStorage.clear();
   localStorage.setItem('workout_onboarding_complete', 'true');
+  localStorage.setItem('workout_personality', 'neutral');
 });
 await page.reload({ waitUntil: 'networkidle' });
 await settle();
@@ -81,9 +82,9 @@ check('Today carries the mark and wordmark',
 const start = await ring().getAttribute('aria-label').catch(() => null);
 check('ring starts at 1 of 3', start === '1 of 3 done today', start ?? '(missing)');
 
-check('the suggestion carries a reason line',
-  await page.getByText(/left, \d days|Every remaining day|Last day of the week/).first()
-    .isVisible().catch(() => false));
+const reasonLine = await page.locator('.text-\\[13\\.5px\\]').first().innerText().catch(() => '');
+check('the suggestion carries a reason line', reasonLine.trim().length > 0, reasonLine);
+check('the reason quotes the numbers', /\d/.test(reasonLine), reasonLine);
 
 await page.getByRole('button', { name: 'Walk', exact: true }).click();
 await page.waitForTimeout(500);
@@ -114,9 +115,9 @@ check('Lift debt updates on its row', await page.getByText('1 of 3 this week').i
 // bottom padding clears the nav's floating Workout button.
 await page.getByRole('button', { name: 'Make today a rest day' }).click();
 await page.waitForTimeout(500);
-check('rest day can be set', await page.getByText('Nothing owed.').isVisible().catch(() => false));
+check('rest day can be set', await page.getByText('Rest day', { exact: true }).isVisible().catch(() => false));
 check('the suggestion goes quiet on a rest day',
-  !(await page.getByText(/left, \d days|Every remaining day/).first().isVisible().catch(() => false)));
+  !(await page.getByText('Next', { exact: true }).isVisible().catch(() => false)));
 const restRing = await ring().getAttribute('aria-label');
 check('a rest day still scores the daily habits', restRing === '1 of 3 done today', restRing ?? '(missing)');
 await page.getByRole('button', { name: 'Resting today' }).click();
@@ -141,7 +142,11 @@ for (const tab of ['Library', 'Insights', 'Settings']) {
 // Insights: every range renders, and history before tracking began is empty.
 await page.getByRole('button', { name: 'Insights', exact: true }).click();
 await page.waitForTimeout(800);
-check('Insights opens on the week', await page.getByText(/closed\.|has not started/).first().isVisible().catch(() => false));
+// The range label is not voiced, so it is the stable thing to assert on.
+check('Insights opens on the week',
+  await page.getByText(/\d+\u2013\d+ \w+|\d+ \w+ \u2013 \d+ \w+/).first().isVisible().catch(() => false));
+const verdict = await page.locator('.mv-serif').first().innerText().catch(() => '');
+check('the week carries a verdict', verdict.trim().length > 0, verdict);
 for (const range of ['month', 'year']) {
   const before = pageErrors.length;
   await page.getByRole('button', { name: range, exact: true }).click();
@@ -149,9 +154,14 @@ for (const range of ['month', 'year']) {
   check(`Insights renders the ${range}`, pageErrors.length === before, pageErrors.slice(before).join(' | '));
 }
 
-// Workout is reachable without a tab.
+// Workout is reachable without a tab. Library opens on Habits now, so the
+// start flow is one tab across.
 await page.getByRole('button', { name: 'Library', exact: true }).click();
 await page.waitForTimeout(700);
+check('Library opens on Habits',
+  await page.getByRole('button', { name: 'Add a Habit' }).isVisible().catch(() => false));
+await page.getByRole('button', { name: 'Workouts', exact: true }).click();
+await page.waitForTimeout(500);
 await page.getByRole('button', { name: 'Start a Workout' }).click();
 await page.waitForTimeout(800);
 check('Library opens the workout flow',

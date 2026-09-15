@@ -13,6 +13,8 @@ import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
 import { loadBodyMetrics } from '../data/storage';
+import { say } from '../data/voice';
+import { HabitIcon } from '../components/HabitIcon';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
@@ -60,12 +62,17 @@ function WeekPanel({ now }: { now: Date }) {
     <div className="mv-card p-5">
       <div className="mv-caps mb-2">{review.rangeLabel}</div>
       <div className="mv-serif text-[23px] leading-snug mb-4" style={{ color: 'var(--mv-ink)' }}>
-        {review.verdict}
+        {say(review.situation, {
+          closed: review.daysClosed,
+          counted: review.daysCounted,
+          habit: review.worstHabit ?? undefined,
+        })}
       </div>
 
       {review.bars.map(b => (
-        <div key={b.habit.id} className="flex items-center gap-3 py-1.5">
-          <span className="w-[88px] flex-shrink-0 text-[13px]" style={{ color: 'var(--mv-ink)' }}>
+        <div key={b.habit.id} className="flex items-center gap-2 py-1.5">
+          <HabitIcon icon={b.habit.icon} size={17} style={{ color: 'var(--mv-faint)' }} />
+          <span className="w-[80px] flex-shrink-0 text-[13px] truncate" style={{ color: 'var(--mv-ink)' }}>
             {b.habit.name}
           </span>
           <span className="flex-grow h-1.5 rounded-full" style={{ background: TRACK }}>

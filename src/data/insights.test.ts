@@ -5,12 +5,12 @@ import {
 } from './insights';
 import type { HabitBar } from './insights';
 import type { HabitLogMap } from '../types/habits';
-import { HABITS } from './habits';
+import { loadHabits } from './habits';
 
 // Wednesday 16 September 2026. Week is Mon 14 to Sun 20.
 const wednesday = () => new Date(2026, 8, 16, 12, 0, 0);
 const bar = (id: string, done: number, target: number): HabitBar =>
-  ({ habit: HABITS.find(h => h.id === id)!, done, target });
+  ({ habit: loadHabits().find(h => h.id === id)!, done, target });
 
 beforeEach(() => { localStorage.clear(); });
 
@@ -44,23 +44,23 @@ describe('formatWeekRange', () => {
 });
 
 describe('weekVerdict', () => {
-  it('says nothing is owed when every bar is full', () => {
-    expect(weekVerdict(3, 3, [bar('walk', 7, 7), bar('lift', 3, 3)]))
-      .toBe('All 3 closed. Nothing owed.');
+  it('is perfect when every bar is full', () => {
+    expect(weekVerdict(3, [bar('walk', 7, 7), bar('lift', 3, 3)]))
+      .toEqual({ situation: 'weekPerfect', worstHabit: null });
   });
 
   it('names the habit with nothing logged at all', () => {
-    expect(weekVerdict(2, 3, [bar('walk', 6, 7), bar('run', 0, 1)]))
-      .toBe('2 of 3 closed. No run yet.');
+    expect(weekVerdict(3, [bar('walk', 6, 7), bar('run', 0, 1)]))
+      .toEqual({ situation: 'weekZero', worstHabit: 'Run' });
   });
 
   it('names the worst proportional gap when everything has started', () => {
-    expect(weekVerdict(2, 3, [bar('walk', 6, 7), bar('lift', 1, 3)]))
-      .toBe('2 of 3 closed. Lift is the gap.');
+    expect(weekVerdict(3, [bar('walk', 6, 7), bar('lift', 1, 3)]))
+      .toEqual({ situation: 'weekGap', worstHabit: 'Lift' });
   });
 
   it('handles a week that has not begun', () => {
-    expect(weekVerdict(0, 0, [])).toBe('The week has not started.');
+    expect(weekVerdict(0, [])).toEqual({ situation: 'weekNotStarted', worstHabit: null });
   });
 });
 
