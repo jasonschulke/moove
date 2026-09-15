@@ -36,22 +36,23 @@ for (const voice of VOICES) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(2600);
 
+  // Today's Next card is gone, so the voice speaks twice: beside the ring,
+  // and as the week's verdict on Insights.
   const ring = await page.locator('.mv-card .text-\\[14px\\]').first().innerText();
-  const reason = await page.locator('.text-\\[13\\.5px\\]').first().innerText();
   await page.getByRole('button', { name: 'Insights', exact: true }).click();
   await page.waitForTimeout(700);
   const verdict = await page.locator('.mv-serif').first().innerText();
 
-  spoken[voice] = { ring, reason, verdict };
-  check(`${voice} fills all three lines`,
-    [ring, reason, verdict].every(l => l.trim().length > 0),
-    `${ring} / ${reason} / ${verdict}`);
+  spoken[voice] = { ring, verdict };
+  check(`${voice} fills both lines`,
+    [ring, verdict].every(l => l.trim().length > 0),
+    `${ring} / ${verdict}`);
   check(`${voice} leaves no placeholder`,
-    ![ring, reason, verdict].some(l => /\{\w+\}/.test(l)),
-    `${ring} / ${reason} / ${verdict}`);
+    ![ring, verdict].some(l => /\{\w+\}/.test(l)),
+    `${ring} / ${verdict}`);
 }
 
-for (const slot of ['ring', 'reason', 'verdict']) {
+for (const slot of ['ring', 'verdict']) {
   const distinct = new Set(VOICES.map(v => spoken[v][slot]));
   check(`the ${slot} differs across voices`, distinct.size >= 5, `${distinct.size} of 6 distinct`);
 }

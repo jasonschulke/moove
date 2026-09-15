@@ -40,11 +40,14 @@ await page.waitForTimeout(2600);
 
 await openLibrary();
 check('Library lands on Habits', await page.getByRole('button', { name: 'Add a Habit' }).isVisible().catch(() => false));
-check('the seeded six are listed',
-  (await names()).join(',') === 'Walk,Walk the dog,Dry day,Lift,Run,Weight', (await names()).join(','));
+check('the seeded six are listed, dailies above weeklies',
+  (await names()).join(',') === 'Walk,Walk the dog,Dry day,Weight,Lift,Run', (await names()).join(','));
 check('the dry day reads as a weekly allowance, not as held',
   await page.getByText('5 of 7 days', { exact: true }).isVisible().catch(() => false));
 check('a weekly habit reads as weekly', await page.getByText('3× a week').isVisible().catch(() => false));
+check('the list is grouped by cadence',
+  (await page.getByText('Daily', { exact: true }).isVisible().catch(() => false)) &&
+  (await page.getByText('Weekly', { exact: true }).isVisible().catch(() => false)));
 
 // Icons. The font is remote, so these assert the ligature reaches the DOM
 // rather than how it looks; the glyph itself needs a human eye.
@@ -81,6 +84,12 @@ check('the chosen icon follows it to Today',
 // Index-based targeting is a trap once rows move, so everything below
 // addresses habits by name.
 await openLibrary();
+check('the arrows stay hidden until you ask to reorder',
+  (await page.getByRole('button', { name: 'Move Stretch up' }).count()) === 0);
+await page.getByRole('button', { name: 'Habit list options' }).click();
+await page.waitForTimeout(300);
+await page.getByRole('button', { name: 'Reorder habits' }).click();
+await page.waitForTimeout(400);
 const before = await names();
 await page.getByRole('button', { name: 'Move Stretch up' }).click();
 await page.waitForTimeout(400);
@@ -88,10 +97,18 @@ const after = await names();
 check('reorder moves the row one place',
   before.indexOf('Stretch') - after.indexOf('Stretch') === 1,
   `${before.join(',')} -> ${after.join(',')}`);
-
-const card = page.locator('.mv-card').filter({ hasText: 'Stretch' }).first();
-await card.getByRole('button', { name: 'Edit' }).click();
+await page.getByRole('button', { name: 'Finish reordering' }).first().click();
 await page.waitForTimeout(400);
+
+// Edit sits behind the habit's own gear now, and opens inside its card rather
+// than as a second card above it.
+await page.getByRole('button', { name: 'Options for Stretch' }).click();
+await page.waitForTimeout(300);
+await page.getByRole('button', { name: 'Edit' }).click();
+await page.waitForTimeout(400);
+check('editing does not leave a duplicate card behind',
+  (await names()).filter(n => n === 'Stretch').length === 0,
+  (await names()).join(','));
 await page.getByLabel('Habit name').fill('Stretching');
 await page.getByRole('button', { name: 'Save' }).click();
 await page.waitForTimeout(500);
@@ -101,6 +118,8 @@ check('the edit leaves its neighbours alone',
 
 // Two buttons read "Delete": the one that asks and the one that does. They are
 // named apart so the second is never mistaken for the first.
+await page.getByRole('button', { name: 'Options for Stretching' }).click();
+await page.waitForTimeout(300);
 await page.getByRole('button', { name: 'Remove Stretching' }).click();
 await page.waitForTimeout(300);
 await page.getByRole('button', { name: 'Delete Stretching' }).click();
@@ -123,43 +142,60 @@ await page.waitForTimeout(300);
 check('the unit field appears once the habit records a number',
   await page.getByLabel('Unit', { exact: true }).isVisible().catch(() => false));
 await page.getByRole('button', { name: 'Unit oz' }).click();
-await page.getByLabel('Target').fill('64');
+await page.getByLabel('Goal').fill('64');
 await page.waitForTimeout(300);
-check('a target offers a direction',
+check('a goal offers a direction',
   await page.getByRole('button', { name: 'At most' }).isVisible().catch(() => false));
 check('a measured habit drops the held option',
   !(await page.getByText('Held unless I break it').isVisible().catch(() => false)));
 await page.getByRole('button', { name: 'Add habit' }).click();
 await page.waitForTimeout(600);
-check('the list says what the habit is asking for',
-  await page.getByText('Counts at least 64 oz').isVisible().catch(() => false));
+check('the list says what the habit records',
+  await page.getByText('Records oz, goal at least 64').isVisible().catch(() => false));
 
 await openToday();
-check('the row states the target before anything is logged',
-  await page.getByText('Target 64 oz').isVisible().catch(() => false));
+check('the row states the goal before anything is logged',
+  await page.getByText('Goal 64 oz').isVisible().catch(() => false));
 await page.getByRole('button', { name: /^Water\b/ }).first().click();
 await page.waitForTimeout(400);
 await page.getByLabel('Water in oz').fill('48');
 await page.getByRole('button', { name: 'Save Water' }).click();
 await page.waitForTimeout(500);
-check('the row shows progress against the target',
+check('the row shows progress against the goal',
   await page.getByText('48 / 64 oz').isVisible().catch(() => false));
+// Taking the reading is the task. A goal months out must not hold the day open.
 const short = await ring().getAttribute('aria-label');
-check('a reading under the target does not close the habit',
-  short === '0 of 5 done today', short ?? '(missing)');
-
-await page.getByRole('button', { name: /^Water\b/ }).first().click();
-await page.waitForTimeout(400);
-await page.getByLabel('Water in oz').fill('64');
-await page.getByRole('button', { name: 'Save Water' }).click();
-await page.waitForTimeout(500);
-const met = await ring().getAttribute('aria-label');
-check('meeting the target closes it', met === '1 of 5 done today', met ?? '(missing)');
+check('a reading short of the goal still closes the habit',
+  short === '1 of 5 done today', short ?? '(missing)');
 
 await page.getByRole('button', { name: 'Insights', exact: true }).click();
 await page.waitForTimeout(900);
 check('a measured habit gets its own chart on Insights',
   await page.getByText('Target at least 64 oz').isVisible().catch(() => false));
+// A day you missed is the one you most want to fix. Habits carry the day they
+// started and a fresh install starts them today, so backdate them first or the
+// grid has no day that was ever being tracked.
+await page.evaluate(() => {
+  const habits = JSON.parse(localStorage.getItem('habit_definitions'));
+  localStorage.setItem('habit_definitions',
+    JSON.stringify(habits.map(h => ({ ...h, createdOn: '2026-09-01' }))));
+});
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(2600);
+await page.getByRole('button', { name: 'Insights', exact: true }).click();
+await page.waitForTimeout(700);
+await page.getByRole('button', { name: 'month', exact: true }).click();
+await page.waitForTimeout(600);
+await page.getByRole('button', { name: /^2026-09-14/ }).click();
+await page.waitForTimeout(600);
+check('a day in the month grid opens for logging',
+  await page.getByRole('button', { name: /^Walk\b/ }).first().isVisible().catch(() => false));
+await page.getByRole('button', { name: /^Walk\b/ }).first().click();
+await page.waitForTimeout(500);
+check('logging on a past day sticks',
+  await page.evaluate(() => JSON.parse(localStorage.getItem('habit_logs') ?? '{}')['2026-09-14'] !== undefined));
+await page.getByRole('button', { name: 'Done', exact: true }).click();
+await page.waitForTimeout(500);
 check('weight still gets a card of its own',
   await page.getByText('Tap Weight on Today to log one').isVisible().catch(() => false));
 await openToday();

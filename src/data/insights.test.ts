@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import {
   dayCompletion, formatWeekRange, weekVerdict,
   getWeekReview, getMonthCompletion, getYearCompletion, trackingStartedOn,
 } from './insights';
 import type { HabitBar } from './insights';
 import type { HabitLogMap } from '../types/habits';
-import { loadHabits, recordHabitValue } from './habits';
+import { loadHabits, saveHabits, recordHabitValue } from './habits';
 
 /** Weight lives in body metrics, so a weigh-in is the way to tick that habit. */
 const weighIn = (dateStr: string) => recordHabitValue('weight', dateStr, 182);
@@ -15,7 +15,15 @@ const wednesday = () => new Date(2026, 8, 16, 12, 0, 0);
 const bar = (id: string, done: number, target: number): HabitBar =>
   ({ habit: loadHabits().find(h => h.id === id)!, done, target });
 
-beforeEach(() => { localStorage.clear(); });
+beforeEach(() => {
+  localStorage.clear();
+  // Habits carry the day they started, so the clock has to be still, and the
+  // seeded ones have to predate the days these tests log to. Without this they
+  // start today and every test date lands before the habit existed.
+  vi.setSystemTime(new Date(2026, 8, 16, 12, 0, 0)); // Wednesday 16 September
+  saveHabits(loadHabits().map(h => ({ ...h, createdOn: '2026-09-01' })));
+});
+afterAll(() => { vi.useRealTimers(); });
 
 describe('dayCompletion', () => {
   it('is zero on an untouched day', () => {

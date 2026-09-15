@@ -77,14 +77,18 @@ check('Today is the landing tab', await ring().isVisible().catch(() => false));
 check('Today carries the mark and wordmark',
   (await page.locator('header img[alt="Moove"]').count()) === 2,
   String(await page.locator('header img[alt="Moove"]').count()));
+check('the header draws no rule under itself',
+  (await page.locator('.mv-rule').count()) === 0,
+  String(await page.locator('.mv-rule').count()));
+check('the date sits in the Today card, not the header',
+  (await page.locator('header').innerText()).trim() === '',
+  await page.locator('header').innerText());
 
 // Nothing is held by default, so an untouched day starts empty.
 const start = await ring().getAttribute('aria-label').catch(() => null);
 check('ring starts at 0 of 4', start === '0 of 4 done today', start ?? '(missing)');
 
-const reasonLine = await page.locator('.text-\\[13\\.5px\\]').first().innerText().catch(() => '');
-check('the suggestion carries a reason line', reasonLine.trim().length > 0, reasonLine);
-check('the reason quotes the numbers', /\d/.test(reasonLine), reasonLine);
+check('there is no Next card', !(await page.getByText('Next', { exact: true }).isVisible().catch(() => false)));
 
 await page.getByRole('button', { name: 'Walk', exact: true }).click();
 await page.waitForTimeout(500);
@@ -142,14 +146,14 @@ check('Lift debt updates on its row', await page.getByText('1 of 3 this week').i
 // bottom padding clears the nav's floating Workout button.
 await page.getByRole('button', { name: 'Make today a rest day' }).click();
 await page.waitForTimeout(500);
-check('rest day can be set', await page.getByText('Rest day', { exact: true }).isVisible().catch(() => false));
-check('the suggestion goes quiet on a rest day',
-  !(await page.getByText('Next', { exact: true }).isVisible().catch(() => false)));
+check('rest day can be set',
+  await page.getByRole('button', { name: 'Resting today' }).isVisible().catch(() => false));
 const restRing = await ring().getAttribute('aria-label');
 check('a rest day still scores what was done', restRing === '4 of 5 done today', restRing ?? '(missing)');
 await page.getByRole('button', { name: 'Resting today' }).click();
 await page.waitForTimeout(500);
-check('rest day can be cleared', await page.getByText('Next').first().isVisible().catch(() => false));
+check('rest day can be cleared',
+  await page.getByRole('button', { name: 'Make today a rest day' }).isVisible().catch(() => false));
 
 // Four flat tabs, no more.
 const navLabels = await page.locator('nav button').allInnerTexts();

@@ -1,11 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import {
   DEFAULT_HABITS, HABIT_ICONS, HABIT_ICON_GROUPS, HABIT_COLORS, habitColor,
   loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence,
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, habitValue, setHabitDone, toggleHabit, countDoneInWeek,
   recordHabitValue, dayScore, earliestMeasuredDate,
-  meetsTarget, habitSeries, measuredHabits, describeMeasure, HABIT_UNITS,
+  habitSeries, measuredHabits, describeMeasure, HABIT_UNITS,
+  habitsOn, loadArchivedHabits,
 } from './habits';
 import { loadBodyMetrics } from './storage';
 import type { Habit } from '../types/habits';
@@ -20,7 +21,16 @@ const byId = (id: string): Habit => {
 const held = (): Habit =>
   ({ id: 'kept', name: 'Kept', cadence: { kind: 'daily' }, heldByDefault: true, order: 9 });
 
-beforeEach(() => { localStorage.clear(); });
+// Habits are stamped with the day they started, so the clock has to be still.
+beforeEach(() => {
+  localStorage.clear();
+  vi.setSystemTime(new Date(2026, 8, 15, 12, 0, 0)); // Tuesday 15 September 2026
+});
+afterAll(() => { vi.useRealTimers(); });
+
+/** Backdates the seeded habits, for tests that score days before today. */
+const trackingSince = (dateStr: string) =>
+  saveHabits(loadHabits().map(h => ({ ...h, createdOn: dateStr })));
 
 describe('the seeded defaults', () => {
   it('hold the six tracked things with the right cadences', () => {
@@ -31,6 +41,18 @@ describe('the seeded defaults', () => {
     expect(byId('lift').cadence).toEqual({ kind: 'weekly', perWeek: 3 });
     expect(byId('run').cadence).toEqual({ kind: 'weekly', perWeek: 1 });
     expect(byId('weight').cadence).toEqual({ kind: 'daily' });
+  });
+
+  it('stamp themselves with a start date on first load', () => {
+    loadHabits();
+    expect(loadHabits().every(h => h.createdOn === '2026-09-15')).toBe(true);
+  });
+
+  it('take their start date from the earliest log when there is one', () => {
+    localStorage.setItem('habit_logs', JSON.stringify({ '2026-09-02': { walk: true } }));
+    loadHabits();
+    expect(byId('walk').createdOn).toBe('2026-09-02');
+    expect(byId('dog').createdOn).toBe('2026-09-15');
   });
 
   it('give weight a unit and point it at the body metrics it already has', () => {
@@ -113,62 +135,40 @@ describe('a measured habit', () => {
   });
 });
 
-describe('a measured habit with a target', () => {
+describe('a measured habit with a goal', () => {
   /** A measured habit of the user's own, which stores in the habit log. */
   const water = (over: Partial<Habit> = {}): Habit => addHabit({
     name: 'Water', cadence: { kind: 'daily' }, heldByDefault: false,
     unit: 'oz', target: 64, targetDirection: 'atLeast', ...over,
   });
 
-  it('is not done on a reading under the target', () => {
+  it('is done on any reading, short of the target or not', () => {
+    // The target is a goal line on the chart, not a gate on the day. A weight
+    // goal is months out; holding the ring open for it every morning punishes
+    // you for doing the actual daily task, which is taking the reading.
     const h = water();
     recordHabitValue(h.id, '2026-09-15', 48);
-    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(false);
-    // The reading is still kept, so the chart and the field show it.
+    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
     expect(habitValue(h, '2026-09-15', loadHabitLogs())).toBe(48);
   });
 
-  it('is done at the target exactly, and above it', () => {
+  it('is not done on a day with no reading', () => {
     const h = water();
     recordHabitValue(h.id, '2026-09-15', 64);
-    recordHabitValue(h.id, '2026-09-16', 80);
-    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
-    expect(isHabitDone(h, '2026-09-16', loadHabitLogs())).toBe(true);
-  });
-
-  it('reverses for a habit you are keeping under', () => {
-    const h = water({ name: 'Screen time', unit: 'min', target: 120, targetDirection: 'atMost' });
-    recordHabitValue(h.id, '2026-09-15', 90);
-    recordHabitValue(h.id, '2026-09-16', 200);
-    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
     expect(isHabitDone(h, '2026-09-16', loadHabitLogs())).toBe(false);
   });
 
-  it('counts any reading when there is no target', () => {
-    const h = water({ target: undefined, targetDirection: undefined });
-    recordHabitValue(h.id, '2026-09-15', 1);
-    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
-  });
-
-  it('keeps a measured habit out of the day until the target is met', () => {
+  it('counts toward the day on any reading', () => {
     const h = water();
-    recordHabitValue(h.id, '2026-09-15', 48);
     expect(dayScore('2026-09-15', loadHabitLogs()).completed).toBe(0);
-    recordHabitValue(h.id, '2026-09-15', 64);
+    recordHabitValue(h.id, '2026-09-15', 1);
     expect(dayScore('2026-09-15', loadHabitLogs()).completed).toBe(1);
   });
 
-  it('judges a target directly', () => {
-    const h = water();
-    expect(meetsTarget(h, 63.9)).toBe(false);
-    expect(meetsTarget(h, 64)).toBe(true);
-    expect(meetsTarget({ ...h, target: undefined }, 0.1)).toBe(true);
-  });
-
   it('describes itself in the list', () => {
-    expect(describeMeasure(water())).toBe('Counts at least 64 oz');
+    expect(describeMeasure(water())).toBe('Records oz, goal at least 64');
     expect(describeMeasure(water({ target: 120, targetDirection: 'atMost', unit: 'min' })))
-      .toBe('Counts at most 120 min');
+      .toBe('Records min, goal at most 120');
     expect(describeMeasure(water({ target: undefined }))).toBe('Records a number in oz');
     expect(describeMeasure(byId('walk'))).toBeNull();
   });
@@ -203,6 +203,47 @@ describe('habitSeries and measuredHabits', () => {
   it('offers units worth not typing on a phone', () => {
     expect(HABIT_UNITS).toContain('lb');
     expect(new Set(HABIT_UNITS).size).toBe(HABIT_UNITS.length);
+  });
+});
+
+describe('habitsOn', () => {
+  it('ignores a habit on days before it existed', () => {
+    trackingSince('2026-09-01');
+    addHabit({ name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false });
+    expect(habitsOn('2026-08-31').map(h => h.name)).not.toContain('Stretch');
+    expect(habitsOn('2026-09-15').map(h => h.name)).toContain('Stretch');
+  });
+
+  it('stops a new habit from rewriting the past', () => {
+    trackingSince('2026-09-01');
+    const before = dayScore('2026-09-10', { '2026-09-10': { walk: true } });
+    addHabit({ name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false });
+    expect(dayScore('2026-09-10', { '2026-09-10': { walk: true } })).toEqual(before);
+    // Today does widen, because today is when it started.
+    expect(dayScore('2026-09-15', {}).total).toBe(before.total + 1);
+  });
+
+  it('keeps a deleted habit in the days it was part of', () => {
+    trackingSince('2026-09-01');
+    deleteHabit('dry');
+    expect(habitsOn('2026-09-14').map(h => h.id)).toContain('dry');
+    expect(habitsOn('2026-09-15').map(h => h.id)).not.toContain('dry');
+  });
+
+  it('archives the definition rather than dropping it', () => {
+    trackingSince('2026-09-01');
+    deleteHabit('dry');
+    const archived = loadArchivedHabits();
+    expect(archived.map(h => h.id)).toEqual(['dry']);
+    expect(archived[0].deletedOn).toBe('2026-09-15');
+    expect(archived[0].name).toBe('Dry day');
+  });
+
+  it('does not let deleting a habit you were failing improve the past', () => {
+    trackingSince('2026-09-01');
+    const before = dayScore('2026-09-10', { '2026-09-10': { walk: true } });
+    deleteHabit('dry');
+    expect(dayScore('2026-09-10', { '2026-09-10': { walk: true } })).toEqual(before);
   });
 });
 

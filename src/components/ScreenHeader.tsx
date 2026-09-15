@@ -1,10 +1,11 @@
 /**
- * The header every screen shares: the mark, the screen's wordmark, and the
- * black rule under them. Black is structure, so the rule replaces the hairline
- * border the screens used to carry.
+ * The header every screen shares: the mark and the screen's wordmark. Nothing
+ * is drawn under or over it; the cards below carry the structure.
  *
  * `wordmark` is a path in public/. Screens without artwork pass `label`
- * instead and get the same shape in type.
+ * instead, set to match the artwork's cap height rather than the caption size
+ * it used to borrow, which left one screen's name visibly smaller than the
+ * rest.
  */
 
 interface ScreenHeaderProps {
@@ -23,11 +24,17 @@ export function ScreenHeader({ wordmark, label, alt, trailing }: ScreenHeaderPro
           <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
           {wordmark
             ? <img src={wordmark} alt={alt} className="h-5 dark:invert" />
-            : <span className="mv-caps" style={{ fontSize: 13, letterSpacing: '2px', color: 'var(--mv-ink)' }}>{label ?? alt}</span>}
+            : <span style={{
+                fontSize: 25,
+                lineHeight: '20px',
+                fontWeight: 800,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                color: 'var(--mv-ink)',
+              }}>{label ?? alt}</span>}
         </div>
         {trailing}
       </header>
-      <div className="mv-rule mx-4" />
     </>
   );
 }

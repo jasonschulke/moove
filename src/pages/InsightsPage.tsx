@@ -7,11 +7,15 @@
  * looking at rather than a separate room.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
+import { getDayView } from '../data/today';
+import { HabitList } from '../components/HabitList';
+import { CompletionRing } from '../components/CompletionRing';
 import { say } from '../data/voice';
 import { HabitIcon } from '../components/HabitIcon';
 import { habitColor, measuredHabits, habitSeries, loadHabitLogs } from '../data/habits';
@@ -27,7 +31,7 @@ const TRACK = 'var(--mv-track)';
 const VIOLET = 'var(--mv-violet)';
 
 /** One day as a ring with its date in the middle. */
-function DayDonut({ day }: { day: DayCompletion }) {
+function DayDonut({ day, onOpen }: { day: DayCompletion; onOpen: () => void }) {
   const degrees = Math.round(day.completion * 360);
   const ring = day.isFuture || day.isUntracked
     ? 'var(--mv-empty)'
@@ -36,8 +40,14 @@ function DayDonut({ day }: { day: DayCompletion }) {
       : `conic-gradient(from -90deg, ${GREEN} 0deg ${degrees}deg, ${TRACK} ${degrees}deg 360deg)`;
 
   return (
-    <div
-      className="flex items-center justify-center rounded-full"
+    <button
+      // A day you forgot is the day you most want to fix, and until now the
+      // grid was the one place you could see the gap and not do anything about
+      // it. Future days stay inert; there is nothing to log yet.
+      onClick={onOpen}
+      disabled={day.isFuture}
+      aria-label={`${day.dateStr}, ${Math.round(day.completion * 100)} percent`}
+      className="flex items-center justify-center rounded-full disabled:cursor-default"
       style={{ width: 38, height: 38, background: ring }}
       title={`${day.dateStr}: ${Math.round(day.completion * 100)}%`}
     >
@@ -52,8 +62,53 @@ function DayDonut({ day }: { day: DayCompletion }) {
       >
         {day.dayOfMonth}
       </span>
-    </div>
+    </button>
   );
+}
+
+const SHEET_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+const SHEET_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** One day, opened from the month grid, with everything on it still loggable. */
+function DaySheet({ dateStr, onClose, onChange }: {
+  dateStr: string;
+  onClose: () => void;
+  onChange: () => void;
+}) {
+  const [view, setView] = useState(() => getDayView(dateStr));
+  const refresh = useCallback(() => { setView(getDayView(dateStr)); onChange(); }, [dateStr, onChange]);
+
+  const d = new Date(`${dateStr}T12:00:00`);
+  const title = `${SHEET_WEEKDAYS[d.getDay()]} ${d.getDate()} ${SHEET_MONTHS[d.getMonth()]}`;
+
+  // Through a portal, because the panels sit inside a section that keeps a
+  // transform after its entry animation, and a transformed ancestor makes
+  // position: fixed resolve against that box instead of the viewport. The
+  // sheet was being clipped to the height of the month grid.
+  return createPortal((
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--mv-paper)' }}>
+      <div className="flex-grow overflow-y-auto pb-8">
+        <div className="max-w-lg mx-auto px-4 pt-14 safe-top">
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <span className="mv-serif text-[24px]" style={{ color: 'var(--mv-ink)' }}>{title}</span>
+            <button onClick={onClose} className="mv-caps px-2 py-2" style={{ color: 'var(--mv-ink)' }}>
+              Done
+            </button>
+          </div>
+
+          <div className="mv-card flex items-center gap-5 p-5 mb-4">
+            <CompletionRing completed={view.completed} total={view.total} size={84} />
+            <div className="min-w-0 text-[14px]" style={{ color: 'var(--mv-muted)' }}>
+              {view.isRest ? 'Rest day.' : `${view.completed} of ${view.total} done.`}
+            </div>
+          </div>
+
+          <HabitList statuses={view.statuses} dateStr={dateStr} onChange={refresh} />
+        </div>
+      </div>
+    </div>
+  ), document.body);
 }
 
 function WeekPanel({ now }: { now: Date }) {
@@ -99,7 +154,13 @@ function WeekPanel({ now }: { now: Date }) {
 }
 
 function MonthPanel({ now }: { now: Date }) {
-  const days = useMemo(() => getMonthCompletion(now), [now]);
+  const [open, setOpen] = useState<string | null>(null);
+  // Bumped after an edit in the sheet so the grid redraws behind it. The
+  // counter is not read, only depended on; the data it guards lives in
+  // localStorage, which the hook rules cannot see.
+  const [version, setVersion] = useState(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const days = useMemo(() => getMonthCompletion(now), [now, version]);
   // Blank cells so the 1st lands under its weekday, Monday first.
   const lead = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
 
@@ -114,9 +175,18 @@ function MonthPanel({ now }: { now: Date }) {
         </div>
         <div className="grid grid-cols-7 justify-items-center gap-y-2">
           {Array.from({ length: lead }).map((_, i) => <div key={`lead-${i}`} style={{ width: 38, height: 38 }} />)}
-          {days.map(d => <DayDonut key={d.dateStr} day={d} />)}
+          {days.map(d => (
+            <DayDonut key={d.dateStr} day={d} onOpen={() => setOpen(d.dateStr)} />
+          ))}
         </div>
       </div>
+      {open && (
+        <DaySheet
+          dateStr={open}
+          onClose={() => setOpen(null)}
+          onChange={() => setVersion(v => v + 1)}
+        />
+      )}
     </>
   );
 }

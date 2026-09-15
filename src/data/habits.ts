@@ -16,6 +16,8 @@ const HABIT_LOGS_KEY = 'habit_logs';
 const HABIT_DEFS_KEY = 'habit_definitions';
 const HABITS_SEEDED_KEY = 'habit_definitions_seeded';
 const HELD_MIGRATED_KEY = 'habit_held_default_off';
+const HABIT_ARCHIVE_KEY = 'habit_archive';
+const CREATED_ON_KEY = 'habit_created_on_stamped';
 
 /** What a new install starts with. Editable from Library once it is seeded. */
 export const DEFAULT_HABITS: Habit[] = [
@@ -108,8 +110,12 @@ export function loadHabits(): Habit[] {
       if (habitCache && habitCache.raw === raw) return habitCache.habits.slice();
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        const habits = migrateHeldDefault((parsed as Habit[]).slice().sort((a, b) => a.order - b.order));
-        habitCache = { raw, habits };
+        const habits = stampCreatedOn(
+          migrateHeldDefault((parsed as Habit[]).slice().sort((a, b) => a.order - b.order)));
+        // Keyed on what is stored AFTER the migrations, not what was read. A
+        // migration rewrites the list, so caching the result under the old
+        // string made the cache answer for input it had never been given.
+        habitCache = { raw: localStorage.getItem(HABIT_DEFS_KEY), habits };
         return habits.slice();
       }
     }
@@ -138,6 +144,39 @@ function migrateHeldDefault(habits: Habit[]): Habit[] {
   return next;
 }
 
+/**
+ * Gives habits that predate start dates one, once.
+ *
+ * Their real start is unknowable, so the first day they were logged is the
+ * closest honest answer, and today for one that never has been. Without this
+ * the fix would only apply to habits added from here on, which is the less
+ * useful half.
+ */
+function stampCreatedOn(habits: Habit[]): Habit[] {
+  if (localStorage.getItem(CREATED_ON_KEY)) return habits;
+  localStorage.setItem(CREATED_ON_KEY, 'true');
+  if (habits.every(h => h.createdOn)) return habits;
+
+  const today = formatLocalDate(new Date());
+  const logs = loadHabitLogs();
+  const firstLogged = new Map<string, string>();
+  for (const date of Object.keys(logs).sort()) {
+    for (const id of Object.keys(logs[date] ?? {})) {
+      if (!firstLogged.has(id)) firstLogged.set(id, date);
+    }
+  }
+
+  const next = habits.map(h => {
+    if (h.createdOn) return h;
+    const fromLog = firstLogged.get(h.id);
+    const fromMetrics = h.source === 'bodyWeight' ? earliestMeasuredDate() : null;
+    const dates = [fromLog, fromMetrics].filter((d): d is string => Boolean(d)).sort();
+    return { ...h, createdOn: dates[0] ?? today };
+  });
+  localStorage.setItem(HABIT_DEFS_KEY, JSON.stringify(next));
+  return next;
+}
+
 /** Writes the list, renumbering order so it always matches position. */
 export function saveHabits(habits: Habit[]): void {
   const ordered = habits.map((h, i) => ({ ...h, order: i }));
@@ -151,7 +190,12 @@ export function addHabit(input: {
   target?: number; targetDirection?: 'atLeast' | 'atMost';
 }): Habit {
   const habits = loadHabits();
-  const habit: Habit = { id: generateUUID(), order: habits.length, ...input };
+  const habit: Habit = {
+    id: generateUUID(),
+    order: habits.length,
+    createdOn: formatLocalDate(new Date()),
+    ...input,
+  };
   saveHabits([...habits, habit]);
   return habit;
 }
@@ -166,9 +210,60 @@ export function updateHabit(id: string, patch: Partial<Omit<Habit, 'id'>>): Habi
   return updated;
 }
 
-/** Removes a habit. Its logs are left alone; nothing reads them once it is gone. */
+/** A habit that is no longer tracked, kept so its history stays readable. */
+export type ArchivedHabit = Habit & { deletedOn: string };
+
+let archiveCache: { raw: string | null; habits: ArchivedHabit[] } | null = null;
+
+export function loadArchivedHabits(): ArchivedHabit[] {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(HABIT_ARCHIVE_KEY);
+  } catch {
+    return [];
+  }
+  if (archiveCache && archiveCache.raw === raw) return archiveCache.habits.slice();
+  let habits: ArchivedHabit[] = [];
+  try {
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) habits = parsed as ArchivedHabit[];
+  } catch {
+    habits = [];
+  }
+  archiveCache = { raw, habits };
+  return habits.slice();
+}
+
+/**
+ * Stops tracking a habit. The definition moves to the archive rather than
+ * disappearing, so weeks it was part of still score the way they did at the
+ * time instead of quietly improving the moment you delete something you were
+ * failing at.
+ */
 export function deleteHabit(id: string): void {
-  saveHabits(loadHabits().filter(h => h.id !== id));
+  const habits = loadHabits();
+  const gone = habits.find(h => h.id === id);
+  if (gone) {
+    const archive = loadArchivedHabits().filter(h => h.id !== id);
+    archive.push({ ...gone, deletedOn: formatLocalDate(new Date()) });
+    localStorage.setItem(HABIT_ARCHIVE_KEY, JSON.stringify(archive));
+  }
+  saveHabits(habits.filter(h => h.id !== id));
+}
+
+/**
+ * The habits that were being tracked on a date: the current ones that had
+ * started by then, plus archived ones that had not yet been dropped.
+ *
+ * This is what stops the past moving. Scoring every day against the current
+ * list meant adding a habit today made every day back to January look worse,
+ * and deleting one you kept missing made the whole year look better.
+ */
+export function habitsOn(dateStr: string): Habit[] {
+  const live = loadHabits().filter(h => !h.createdOn || h.createdOn <= dateStr);
+  const archived = loadArchivedHabits()
+    .filter(h => (!h.createdOn || h.createdOn <= dateStr) && h.deletedOn > dateStr);
+  return [...live, ...archived].sort((a, b) => a.order - b.order);
 }
 
 /** Moves a habit one place up or down. A no-op at either end. */
@@ -178,6 +273,27 @@ export function moveHabit(id: string, direction: -1 | 1): Habit[] {
   const to = from + direction;
   if (from === -1 || to < 0 || to >= habits.length) return habits;
   [habits[from], habits[to]] = [habits[to], habits[from]];
+  saveHabits(habits);
+  return loadHabits();
+}
+
+/**
+ * Moves a habit one place within a subset of the list, given that subset's ids
+ * in display order.
+ *
+ * Library groups daily and weekly habits under separate headings, and a plain
+ * global move there looks broken: nudging the first weekly habit up swaps it
+ * with a daily one two headings away and nothing appears to move.
+ */
+export function moveHabitAmong(id: string, direction: -1 | 1, siblingIds: string[]): Habit[] {
+  const habits = loadHabits();
+  const siblings = siblingIds.filter(sid => habits.some(h => h.id === sid));
+  const from = siblings.indexOf(id);
+  const to = from + direction;
+  if (from === -1 || to < 0 || to >= siblings.length) return habits;
+  const a = habits.findIndex(h => h.id === id);
+  const b = habits.findIndex(h => h.id === siblings[to]);
+  [habits[a], habits[b]] = [habits[b], habits[a]];
   saveHabits(habits);
   return loadHabits();
 }
@@ -207,12 +323,12 @@ export function describeCadence(cadence: HabitCadence, heldByDefault: boolean): 
   }
 }
 
-/** What a measured habit is asking for, in plain words. Null if it is a tick. */
+/** What a measured habit records, in plain words. Null if it is a tick. */
 export function describeMeasure(habit: Habit): string | null {
   if (!habit.unit) return null;
   if (habit.target === undefined) return `Records a number in ${habit.unit}`;
   const side = habit.targetDirection === 'atMost' ? 'at most' : 'at least';
-  return `Counts ${side} ${habit.target} ${habit.unit}`;
+  return `Records ${habit.unit}, goal ${side} ${habit.target}`;
 }
 
 export function loadHabitLogs(): HabitLogMap {
@@ -257,23 +373,15 @@ function weightByDate(): Map<string, number> {
  * default, which is true only for inverted habits like the dry day.
  */
 export function isHabitDone(habit: Habit, dateStr: string, logs: HabitLogMap): boolean {
-  if (habit.unit) {
-    const value = habitValue(habit, dateStr, logs);
-    return value !== null && meetsTarget(habit, value);
-  }
+  // A reading is the whole task. The target is a goal line on the chart and
+  // deliberately does not gate this: a weight goal is months away and would
+  // otherwise hold the ring open every morning for doing exactly the right
+  // thing, which is standing on the scale.
+  if (habit.unit) return habitValue(habit, dateStr, logs) !== null;
   const explicit = logs[dateStr]?.[habit.id];
   if (explicit === undefined) return habit.heldByDefault;
   // A number in the log still counts, so removing a unit does not unpick history.
   return typeof explicit === 'number' ? true : explicit;
-}
-
-/**
- * Whether a reading is good enough. No target means any reading counts, which
- * is right for something you are watching rather than chasing.
- */
-export function meetsTarget(habit: Habit, value: number): boolean {
-  if (habit.target === undefined) return true;
-  return habit.targetDirection === 'atMost' ? value <= habit.target : value >= habit.target;
 }
 
 /** The number logged for a measured habit on a date, if there is one. */
@@ -361,9 +469,11 @@ export function earliestMeasuredDate(): string | null {
  * day, never dilute it, which is right because its cadence is the week. The
  * alternative, a fixed slot every day, would mark four days a week failed for
  * a habit you are meeting in full.
+ *
+ * The list is the one that was being tracked on that date, not today's.
  */
 export function dayScore(dateStr: string, logs: HabitLogMap): { completed: number; total: number } {
-  const habits = loadHabits();
+  const habits = habitsOn(dateStr);
   const daily = habits.filter(h => h.cadence.kind !== 'weekly');
   const weeklyDone = habits.filter(
     h => h.cadence.kind === 'weekly' && isHabitDone(h, dateStr, logs)).length;

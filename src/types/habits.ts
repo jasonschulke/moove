@@ -50,13 +50,18 @@ export interface Habit {
    */
   source?: 'bodyWeight';
   /**
-   * The number the reading has to reach for the day to count. Absent means any
-   * reading counts, which is right for something you are watching rather than
-   * chasing, like body weight.
+   * A goal line for the chart. It does NOT decide whether the day counts: any
+   * reading does that. A weight goal is months away and should not hold the
+   * ring open every morning, and the daily task is weighing in, not arriving.
    */
   target?: number;
-  /** Which side of the target is good. Defaults to 'atLeast'. */
+  /** Which way is progress, for the chart. Defaults to 'atLeast'. */
   targetDirection?: 'atLeast' | 'atMost';
+  /**
+   * The day this habit started counting, YYYY-MM-DD. Days before it do not
+   * hold a slot open for it, so adding a habit stops rewriting your history.
+   */
+  createdOn?: string;
   order: number;
 }
 

@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { loadHabits, countDoneInWeek, loadHabitLogs, dayScore, earliestMeasuredDate } from './habits';
+import { habitsOn, countDoneInWeek, loadHabitLogs, dayScore, earliestMeasuredDate } from './habits';
 import { startOfWeek, endOfWeek } from '../utils/week';
 import { formatLocalDate, isRestDay, loadRestDays } from './storage';
 import type { Situation } from './voice';
@@ -118,22 +118,30 @@ export function getWeekReview(now: Date = new Date(), logs?: HabitLogMap): WeekR
   const log = logs ?? loadHabitLogs();
   const todayStr = formatLocalDate(now);
 
-  const bars: HabitBar[] = loadHabits().map(habit => ({
-    habit,
-    done: Math.min(countDoneInWeek(habit, now, log), weekTarget(habit)),
-    target: weekTarget(habit),
-  }));
-
-  // Only days that have happened can be judged.
+  // Only days that have happened can be judged. The same walk collects which
+  // habits were being tracked during the week, so one dropped on Wednesday
+  // still gets a bar for the days it was part of.
   let daysClosed = 0;
   let daysCounted = 0;
+  const tracked = new Map<string, Habit>();
   const end = endOfWeek(now);
   for (const d = new Date(startOfWeek(now)); d < end; d.setDate(d.getDate() + 1)) {
     const dateStr = formatLocalDate(d);
     if (dateStr > todayStr) break;
     daysCounted++;
     if (dayCompletion(dateStr, log) === 1) daysClosed++;
+    for (const habit of habitsOn(dateStr)) tracked.set(habit.id, habit);
   }
+  // A week that has not started yet still lists what you are tracking now.
+  if (tracked.size === 0) for (const habit of habitsOn(todayStr)) tracked.set(habit.id, habit);
+
+  const bars: HabitBar[] = [...tracked.values()]
+    .sort((a, b) => a.order - b.order)
+    .map(habit => ({
+      habit,
+      done: Math.min(countDoneInWeek(habit, now, log), weekTarget(habit)),
+      target: weekTarget(habit),
+    }));
 
   const { situation, worstHabit } = weekVerdict(daysCounted, bars);
 

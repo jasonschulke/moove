@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { loadHabits, dailyHabits, weeklyHabits, isHabitDone, habitValue, countDoneInWeek, loadHabitLogs, dayScore } from './habits';
+import { habitsOn, dailyHabits, weeklyHabits, isHabitDone, habitValue, countDoneInWeek, loadHabitLogs, dayScore } from './habits';
 import { daysLeftInWeek } from '../utils/week';
 import { formatLocalDate, isRestDay } from './storage';
 import type { Situation } from './voice';
@@ -77,7 +77,10 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
   const dateStr = formatLocalDate(now);
   const daysLeft = daysLeftInWeek(now);
 
-  const statuses: HabitStatus[] = loadHabits().map(habit => {
+  // What was being tracked on the date, not what is tracked now. Opening an
+  // old day from the month grid should not offer rows that cannot score,
+  // because dayScore judges that day by the same list.
+  const statuses: HabitStatus[] = habitsOn(dateStr).map(habit => {
     const doneThisWeek = countDoneInWeek(habit, now, log);
     const perWeek = weeklyTarget(habit);
     return {
@@ -104,6 +107,14 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
     suggestion: isRest ? null : pickSuggestion(statuses, daysLeft),
     daySituation: daySituation(completed, total, isRest),
   };
+}
+
+/**
+ * The same view for any day, for the month grid's day sheet. Midday, so a
+ * timezone shift cannot roll the date over into its neighbour.
+ */
+export function getDayView(dateStr: string): TodayView {
+  return getTodayView(new Date(`${dateStr}T12:00:00`));
 }
 
 /**

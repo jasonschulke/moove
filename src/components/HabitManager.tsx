@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
 import {
-  loadHabits, addHabit, updateHabit, deleteHabit, moveHabit,
+  loadHabits, addHabit, updateHabit, deleteHabit, moveHabitAmong,
   describeCadence, describeMeasure, habitColor, HABIT_UNITS,
 } from '../data/habits';
 import { IconPicker } from './IconPicker';
@@ -81,7 +81,7 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
   const unitLabel = draft.unit.trim() || 'the unit';
 
   return (
-    <div className="mv-card p-4 mb-3">
+    <div>
       <div className="mv-caps mb-3">{draft.id ? 'Edit habit' : 'New habit'}</div>
 
       <div className="flex items-center gap-2 mb-3 px-3 py-2.5 rounded-[10px]"
@@ -190,7 +190,7 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
             ))}
           </div>
 
-          <div className="mv-caps mt-4 mb-2">Target</div>
+          <div className="mv-caps mt-4 mb-2">Goal</div>
           <input
             type="number"
             inputMode="decimal"
@@ -198,7 +198,7 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
             value={draft.target}
             onChange={e => onChange({ ...draft, target: e.target.value })}
             placeholder="Optional"
-            aria-label="Target"
+            aria-label="Goal"
             className="mv-number w-full px-3 h-10 rounded-[10px] text-[15px] bg-transparent outline-none"
             style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
           />
@@ -223,8 +223,8 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
 
           <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--mv-muted)' }}>
             {hasTarget
-              ? `The day counts only once the reading is ${draft.direction === 'atMost' ? 'at or under' : 'at or over'} ${draft.target.trim()} ${unitLabel}.`
-              : 'No target means any reading counts the day done. Right for something you are watching rather than chasing.'}
+              ? `Drawn across the chart, and marked ${draft.direction === 'atMost' ? 'down' : 'up'} to ${draft.target.trim()} ${unitLabel} as progress. Taking the reading is what completes the task, so a goal months away never holds today open.`
+              : 'A goal is drawn on the chart and nothing more. Taking the reading is what completes the task.'}
           </p>
 
           {draft.source === 'bodyWeight' && (
@@ -293,10 +293,114 @@ function ArrowIcon({ up }: { up: boolean }) {
   );
 }
 
+function GearIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+/**
+ * One habit at rest.
+ *
+ * Edit and delete live behind a gear rather than sitting on the card, because
+ * two permanent text buttons per row made a list of six habits read as twelve
+ * actions. The reorder arrows are behind the page's own gear for the same
+ * reason: you reorder once and then never again.
+ */
+function HabitCard({ habit, menuOpen, confirming, reordering, canUp, canDown,
+  onMenu, onEdit, onAskDelete, onKeep, onDelete, onMove }: {
+  habit: Habit;
+  menuOpen: boolean;
+  confirming: boolean;
+  reordering: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onMenu: () => void;
+  onEdit: () => void;
+  onAskDelete: () => void;
+  onKeep: () => void;
+  onDelete: () => void;
+  onMove: (direction: -1 | 1) => void;
+}) {
+  const measure = describeMeasure(habit);
+
+  return (
+    <div className="mv-card p-4">
+      <div className="flex items-start gap-3">
+        <HabitIcon icon={habit.icon} size={22} style={{ color: habitColor(habit), marginTop: 1 }} />
+        <div className="flex-grow min-w-0">
+          <div className="text-[15px]" style={{ color: 'var(--mv-ink)' }}>{habit.name}</div>
+          <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>
+            {describeCadence(habit.cadence, habit.heldByDefault)}
+          </div>
+          {measure && (
+            <div className="text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>{measure}</div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--mv-muted)' }}>
+          {reordering ? (
+            <>
+              <button
+                onClick={() => onMove(-1)}
+                disabled={!canUp}
+                aria-label={`Move ${habit.name} up`}
+                className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
+              ><ArrowIcon up /></button>
+              <button
+                onClick={() => onMove(1)}
+                disabled={!canDown}
+                aria-label={`Move ${habit.name} down`}
+                className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
+              ><ArrowIcon up={false} /></button>
+            </>
+          ) : (
+            <button
+              onClick={onMenu}
+              aria-label={`Options for ${habit.name}`}
+              aria-expanded={menuOpen}
+              className="w-8 h-8 flex items-center justify-center rounded-lg"
+              style={{ color: menuOpen ? 'var(--mv-ink)' : 'var(--mv-muted)' }}
+            ><GearIcon /></button>
+          )}
+        </div>
+      </div>
+
+      {confirming ? (
+        <div className="flex items-center gap-2 mt-3">
+          <span className="flex-grow text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
+            Stop tracking {habit.name}? Past weeks keep it.
+          </span>
+          <button onClick={onKeep} className="mv-caps px-2 py-1">Keep</button>
+          <button
+            onClick={onDelete}
+            aria-label={`Delete ${habit.name}`}
+            className="mv-caps px-2 py-1"
+            style={{ color: '#b91c1c' }}
+          >Delete</button>
+        </div>
+      ) : menuOpen ? (
+        <div className="flex gap-4 mt-3">
+          <button onClick={onEdit} className="mv-caps" style={{ color: 'var(--mv-ink)' }}>Edit</button>
+          <button onClick={onAskDelete} aria-label={`Remove ${habit.name}`} className="mv-caps">Delete</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function HabitManager() {
   const [habits, setHabits] = useState<Habit[]>(() => loadHabits());
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  /** The habit whose gear menu is open. One at a time. */
+  const [menu, setMenu] = useState<string | null>(null);
+  const [pageMenu, setPageMenu] = useState(false);
+  const [reordering, setReordering] = useState(false);
 
   const refresh = () => setHabits(loadHabits());
 
@@ -305,6 +409,7 @@ export function HabitManager() {
     const cadence: HabitCadence = draft.kind === 'daily'
       ? { kind: 'daily' }
       : { kind: draft.kind, perWeek: draft.perWeek };
+
     // A half-typed target is not a number yet, and a measured habit cannot
     // also be held: there is nothing to hold when the day asks for a reading.
     const unit = draft.measured ? draft.unit.trim() : '';
@@ -331,30 +436,76 @@ export function HabitManager() {
     else addHabit(fields);
 
     setDraft(null);
+    setMenu(null);
     refresh();
   };
 
   const remove = (id: string) => {
     deleteHabit(id);
     setConfirming(null);
+    setMenu(null);
     refresh();
   };
+
+  const openEditor = (habit: Habit) => {
+    setDraft(draftFrom(habit));
+    setMenu(null);
+    setConfirming(null);
+  };
+
+  // Daily and weekly are different promises, and reading them as one list made
+  // a weekly habit look like something you had failed to do today.
+  const groups = [
+    { key: 'daily', label: 'Daily', habits: habits.filter(h => h.cadence.kind !== 'weekly') },
+    { key: 'weekly', label: 'Weekly', habits: habits.filter(h => h.cadence.kind === 'weekly') },
+  ].filter(g => g.habits.length > 0);
 
   const dailyCount = habits.filter(h => h.cadence.kind !== 'weekly').length;
 
   return (
     <div className="px-4">
-      {draft
-        ? <HabitEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setDraft(null)} />
-        : (
+      {draft && !draft.id ? (
+        <div className="mv-card p-4 mb-4">
+          <HabitEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setDraft(null)} />
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-4">
           <button
-            onClick={() => setDraft(blankDraft())}
-            className="w-full h-12 mb-4 rounded-[13px] text-[15px] font-semibold"
+            onClick={() => { setDraft(blankDraft()); setReordering(false); setPageMenu(false); }}
+            className="flex-grow h-12 rounded-[13px] text-[15px] font-semibold"
             style={{ background: 'var(--mv-ink)', color: 'var(--mv-paper)' }}
           >
             Add a Habit
           </button>
-        )}
+          <button
+            onClick={() => setPageMenu(o => !o)}
+            aria-label="Habit list options"
+            aria-expanded={pageMenu}
+            className="w-12 h-12 flex items-center justify-center rounded-[13px] flex-shrink-0"
+            style={{ border: '1.5px solid var(--mv-hairline)', color: 'var(--mv-ink)' }}
+          ><GearIcon size={19} /></button>
+        </div>
+      )}
+
+      {pageMenu && (
+        <div className="mv-card p-2 mb-4">
+          <button
+            onClick={() => { setReordering(r => !r); setPageMenu(false); setMenu(null); }}
+            className="w-full text-left px-3 py-2.5 text-[14px]"
+            style={{ color: 'var(--mv-ink)' }}
+          >
+            {reordering ? 'Finish reordering' : 'Reorder habits'}
+          </button>
+        </div>
+      )}
+
+      {reordering && !pageMenu && (
+        <button
+          onClick={() => setReordering(false)}
+          className="w-full h-10 mb-4 rounded-[12px] text-[13px] font-medium"
+          style={{ border: '1.5px solid var(--mv-hairline)', color: 'var(--mv-muted)' }}
+        >Finish reordering</button>
+      )}
 
       {habits.length === 0 && !draft && (
         <div className="mv-card p-5 text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
@@ -362,74 +513,47 @@ export function HabitManager() {
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        {habits.map((habit, i) => (
-          <div key={habit.id} className="mv-card p-4">
-            <div className="flex items-start gap-3">
-              <HabitIcon icon={habit.icon} size={22} style={{ color: habitColor(habit), marginTop: 1 }} />
-              <div className="flex-grow min-w-0">
-                <div className="text-[15px]" style={{ color: 'var(--mv-ink)' }}>{habit.name}</div>
-                <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>
-                  {describeCadence(habit.cadence, habit.heldByDefault)}
-                </div>
-                {describeMeasure(habit) && (
-                  <div className="text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
-                    {describeMeasure(habit)}
+      {groups.map(group => {
+        const ids = group.habits.map(h => h.id);
+        return (
+          <section key={group.key} className="mb-5">
+            <div className="mv-caps mx-1 mb-2">{group.label}</div>
+            <div className="flex flex-col gap-2">
+              {group.habits.map((habit, i) => (
+                draft?.id === habit.id ? (
+                  <div key={habit.id} className="mv-card p-4">
+                    <HabitEditor
+                      draft={draft}
+                      onChange={setDraft}
+                      onSave={save}
+                      onCancel={() => setDraft(null)}
+                    />
                   </div>
-                )}
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--mv-muted)' }}>
-                <button
-                  onClick={() => { moveHabit(habit.id, -1); refresh(); }}
-                  disabled={i === 0}
-                  aria-label={`Move ${habit.name} up`}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
-                ><ArrowIcon up /></button>
-                <button
-                  onClick={() => { moveHabit(habit.id, 1); refresh(); }}
-                  disabled={i === habits.length - 1}
-                  aria-label={`Move ${habit.name} down`}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-25"
-                ><ArrowIcon up={false} /></button>
-              </div>
+                ) : (
+                  <HabitCard
+                    key={habit.id}
+                    habit={habit}
+                    menuOpen={menu === habit.id}
+                    confirming={confirming === habit.id}
+                    reordering={reordering}
+                    canUp={i > 0}
+                    canDown={i < group.habits.length - 1}
+                    onMenu={() => { setMenu(m => (m === habit.id ? null : habit.id)); setConfirming(null); }}
+                    onEdit={() => openEditor(habit)}
+                    onAskDelete={() => setConfirming(habit.id)}
+                    onKeep={() => setConfirming(null)}
+                    onDelete={() => remove(habit.id)}
+                    onMove={dir => { moveHabitAmong(habit.id, dir, ids); refresh(); }}
+                  />
+                )
+              ))}
             </div>
-
-            {confirming === habit.id ? (
-              <div className="flex items-center gap-2 mt-3">
-                <span className="flex-grow text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
-                  Delete {habit.name}? Past logs are kept.
-                </span>
-                <button
-                  onClick={() => setConfirming(null)}
-                  className="mv-caps px-2 py-1"
-                >Keep</button>
-                <button
-                  onClick={() => remove(habit.id)}
-                  aria-label={`Delete ${habit.name}`}
-                  className="mv-caps px-2 py-1"
-                  style={{ color: '#b91c1c' }}
-                >Delete</button>
-              </div>
-            ) : (
-              <div className="flex gap-4 mt-3">
-                <button
-                  onClick={() => setDraft(draftFrom(habit))}
-                  className="mv-caps"
-                  style={{ color: 'var(--mv-ink)' }}
-                >Edit</button>
-                <button
-                  onClick={() => setConfirming(habit.id)}
-                  aria-label={`Remove ${habit.name}`}
-                  className="mv-caps"
-                >Delete</button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          </section>
+        );
+      })}
 
       {habits.length > 0 && (
-        <p className="text-[12.5px] leading-relaxed mt-4 px-1" style={{ color: 'var(--mv-muted)' }}>
+        <p className="text-[12.5px] leading-relaxed mt-1 px-1" style={{ color: 'var(--mv-muted)' }}>
           Today's ring counts the {dailyCount} habit{dailyCount === 1 ? '' : 's'} due every day.
           A weekly habit joins it only on the days you do one, so it can add to a day but never dilute it.
         </p>
