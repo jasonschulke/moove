@@ -21,9 +21,7 @@ import { performInitialSync, setSyncStatusCallback } from './data/supabaseSync';
 import { NavBar } from './components/NavBar';
 import { WorkoutBuilder } from './components/WorkoutBuilder';
 import { WorkoutStartFlow } from './components/WorkoutStartFlow';
-import { ClaudeChat } from './components/ClaudeChat';
 import { TodayPage } from './pages/TodayPage';
-import { HomePage } from './pages/HomePage';
 import { WorkoutPage } from './pages/WorkoutPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -39,14 +37,13 @@ const isAuthCallback = () => {
 };
 
 /** Available pages in the app */
-type Page = 'today' | 'home' | 'workout' | 'library' | 'chat' | 'settings';
+type Page = 'today' | 'workout' | 'library' | 'settings';
 
 /** Theme options */
 type Theme = 'dark' | 'light';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('today');
-  const [homeRefreshKey, setHomeRefreshKey] = useState(0);
   const [showBuilder, setShowBuilder] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -141,8 +138,7 @@ function AppContent() {
 
   const handleCompleteWorkout = (effort?: EffortLevel, distance?: number) => {
     workout.completeWorkout(effort, distance);
-    setHomeRefreshKey(k => k + 1); // Force HomePage to remount with fresh data
-    setCurrentPage('home');
+    setCurrentPage('today');
     // Prompt anonymous users to sign up after completing a workout
     triggerSignUpPrompt('workout');
   };
@@ -154,7 +150,7 @@ function AppContent() {
 
   const handleCancelWorkout = () => {
     workout.cancelWorkout();
-    setCurrentPage('home');
+    setCurrentPage('today');
   };
 
   const toggleTheme = () => {
@@ -213,7 +209,6 @@ function AppContent() {
   return (
     <div className="min-h-screen transition-colors bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       {currentPage === 'today' && <TodayPage />}
-      {currentPage === 'home' && <HomePage key={homeRefreshKey} />}
 
       {currentPage === 'workout' && (
         workout.session && (workout.session.blocks?.length > 0 || workout.session.cardioType) ? (
@@ -251,7 +246,6 @@ function AppContent() {
         <LibraryPage onStartWorkout={handleBuilderStart} />
       )}
 
-      {currentPage === 'chat' && <ClaudeChat />}
 
       {currentPage === 'settings' && <SettingsPage theme={theme} onToggleTheme={toggleTheme} />}
 
@@ -261,11 +255,6 @@ function AppContent() {
           currentPage={currentPage}
           onNavigate={setCurrentPage}
           hasActiveWorkout={!!workout.session && ((workout.session.blocks?.length ?? 0) > 0 || !!workout.session.cardioType)}
-          workoutType={
-            workout.session?.cardioType
-              ? (['run', 'trail-run'].includes(workout.session.cardioType) ? 'cardio-run' : 'cardio-walk')
-              : (workout.session?.blocks?.length ?? 0) > 0 ? 'strength' : null
-          }
           workoutProgress={
             workout.session?.blocks?.length
               ? (() => {

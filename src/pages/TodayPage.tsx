@@ -86,10 +86,10 @@ export function TodayPage() {
 
   const monthName = MONTHS[new Date().getMonth()];
 
-  // pb-36: the nav's floating Workout button rises about 28px above the 64px
-  // bar, so anything shallower leaves the last control occluded.
+  // pb-24 clears the 64px nav bar plus the safe area. The nav is flat now, so
+  // nothing overhangs it.
   return (
-    <div className="today-paper min-h-screen pb-36">
+    <div className="today-paper min-h-screen pb-24">
       <div className="max-w-lg mx-auto">
 
         <header className="px-5 pt-12 pb-3 flex items-baseline justify-between">

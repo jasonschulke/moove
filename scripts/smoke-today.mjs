@@ -81,8 +81,15 @@ await page.getByRole('button', { name: 'Resting today' }).click();
 await page.waitForTimeout(500);
 check('rest day can be cleared', await page.getByText('Next').first().isVisible().catch(() => false));
 
+// Four flat tabs, no more.
+const navLabels = await page.locator('nav button').allInnerTexts();
+check('the nav is exactly four tabs',
+  navLabels.length === 4, navLabels.join(', '));
+check('Home and Coach are gone',
+  !navLabels.some(t => /Home|Coach/.test(t)), navLabels.join(', '));
+
 // Nothing that already worked may break.
-for (const tab of ['Home', 'Library', 'Coach', 'Settings']) {
+for (const tab of ['Workout', 'Library', 'Settings']) {
   const before = pageErrors.length;
   await page.getByRole('button', { name: tab, exact: true }).click();
   await page.waitForTimeout(900);
