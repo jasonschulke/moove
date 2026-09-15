@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import {
   dayCompletion, formatWeekRange, weekVerdict,
   getWeekReview, getWeekDays, getMonthCompletion, getYearCompletion, trackingStartedOn,
+  getAllTime,
 } from './insights';
 import type { HabitBar } from './insights';
 import type { HabitLogMap } from '../types/habits';
@@ -184,6 +185,53 @@ describe('getYearCompletion', () => {
     const days = getYearCompletion(wednesday(), {});
     expect(days[0].dateStr).toBe('2026-01-01');
     expect(days[days.length - 1].dateStr).toBe('2026-12-31');
+  });
+});
+
+describe('getAllTime', () => {
+  /** Closes a day outright: every daily habit, weight included. */
+  const closeDay = (dateStr: string) => {
+    weighIn(dateStr);
+    return { [dateStr]: { walk: true, dog: true, dry: true } };
+  };
+
+  it('is empty before anything is logged', () => {
+    expect(getAllTime(wednesday(), {}))
+      .toEqual({ startedOn: null, daysTracked: 0, daysClosed: 0, bestStreak: 0, currentStreak: 0 });
+  });
+
+  it('counts from the first log to today', () => {
+    const logs: HabitLogMap = { '2026-09-14': { walk: true } };
+    const all = getAllTime(wednesday(), logs);
+    expect(all.startedOn).toBe('2026-09-14');
+    expect(all.daysTracked).toBe(3); // 14, 15, 16
+    expect(all.daysClosed).toBe(0);
+  });
+
+  it('counts the days that closed', () => {
+    const logs: HabitLogMap = { ...closeDay('2026-09-14'), ...closeDay('2026-09-15') };
+    const all = getAllTime(wednesday(), logs);
+    expect(all.daysClosed).toBe(2);
+    expect(all.bestStreak).toBe(2);
+  });
+
+  it('breaks a streak on a day that was missed, and keeps the best', () => {
+    const logs: HabitLogMap = {
+      ...closeDay('2026-09-10'), ...closeDay('2026-09-11'), ...closeDay('2026-09-12'),
+      '2026-09-13': { walk: true },
+      ...closeDay('2026-09-14'),
+    };
+    const all = getAllTime(wednesday(), logs);
+    expect(all.bestStreak).toBe(3);
+    // 14 kept it, 15 and 16 did not, so nothing is running now.
+    expect(all.currentStreak).toBe(0);
+  });
+
+  it('does not let a rest day break a streak', () => {
+    // A rest day is a decision, not a miss. Punishing it just stops you taking one.
+    localStorage.setItem('rest_days', JSON.stringify(['2026-09-15']));
+    const logs: HabitLogMap = { ...closeDay('2026-09-14'), ...closeDay('2026-09-16') };
+    expect(getAllTime(wednesday(), logs).bestStreak).toBe(3);
   });
 });
 

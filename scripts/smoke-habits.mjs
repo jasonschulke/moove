@@ -45,6 +45,8 @@ check('the seeded six are listed, dailies above weeklies',
 check('the dry day reads as a weekly allowance, not as held',
   await page.getByText('5 of 7 days', { exact: true }).isVisible().catch(() => false));
 check('a weekly habit reads as weekly', await page.getByText('3× a week').isVisible().catch(() => false));
+check('History is no longer a Library tab',
+  (await page.getByRole('button', { name: 'History', exact: true }).count()) === 0);
 check('the list is grouped by cadence',
   (await page.getByText('Daily', { exact: true }).isVisible().catch(() => false)) &&
   (await page.getByText('Weekly', { exact: true }).isVisible().catch(() => false)));
@@ -151,9 +153,9 @@ check('a measured habit drops the held option',
   !(await page.getByText('Held unless I break it').isVisible().catch(() => false)));
 await page.getByRole('button', { name: 'Add habit' }).click();
 await page.waitForTimeout(600);
-check('the list shows the goal and nothing about recording',
-  (await page.getByText('Goal ≥ 64 oz').isVisible().catch(() => false)) &&
-  (await page.getByText(/Records/).count()) === 0);
+check('the card carries the cadence and nothing else',
+  (await page.getByText(/Records/).count()) === 0 &&
+  (await page.getByText(/Goal .*64 oz/).count()) === 0);
 
 await openToday();
 check('an unlogged row says nothing about the goal',
@@ -192,6 +194,15 @@ check('filling in a past day pulls the habit start back to it',
     .find(h => h.name === 'Walk').createdOn === '2026-09-14'));
 await page.getByRole('button', { name: 'Done', exact: true }).click();
 await page.waitForTimeout(500);
+
+// Everything for good, plus the workout record, behind a fourth range.
+await page.getByRole('button', { name: 'all', exact: true }).click();
+await page.waitForTimeout(700);
+check('the All tab carries the all-time figures',
+  (await page.getByText('Days closed').isVisible().catch(() => false)) &&
+  (await page.getByText('Best streak').isVisible().catch(() => false)));
+check('the workout history landed with it',
+  await page.getByText('Workouts', { exact: true }).first().isVisible().catch(() => false));
 check('weight still gets a card of its own',
   await page.getByText('Tap Weight on Today to log one').isVisible().catch(() => false));
 await openToday();

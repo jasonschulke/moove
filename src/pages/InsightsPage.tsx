@@ -11,8 +11,11 @@ import { useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ClaudeChat } from '../components/ClaudeChat';
-import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
+import { getWeekReview, getMonthCompletion, getYearCompletion, getAllTime, monthLabel } from '../data/insights';
+import { WorkoutHistory } from '../components/WorkoutHistory';
+import { loadSessions } from '../data/storage';
 import type { DayCompletion } from '../data/insights';
+import type { WorkoutBlock } from '../types';
 import { getDayView } from '../data/today';
 import { HabitList } from '../components/HabitList';
 import { CompletionRing } from '../components/CompletionRing';
@@ -22,7 +25,7 @@ import { habitColor, measuredHabits, habitSeries, loadHabitLogs } from '../data/
 import type { Habit } from '../types/habits';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
-type Range = 'week' | 'month' | 'year';
+type Range = 'week' | 'month' | 'year' | 'all';
 
 // Read from the stylesheet so the screen follows the theme. Hardcoding these
 // is what left Today and Insights stranded in light while the rest went dark.
@@ -251,7 +254,7 @@ function YearPanel({ now }: { now: Date }) {
         {/* Fifty-three columns of readable squares are wider than a phone, so
             the grid scrolls sideways. Squashing them to fit is what made this
             a barcode. */}
-        <div className="overflow-x-auto -mx-1 px-1">
+        <div className="mv-scroll-x overflow-x-auto -mx-1 px-1">
           <div style={{ width: columns.length * YEAR_PITCH }}>
             <div className="relative h-4 mb-1">
               {[...monthStarts.entries()].map(([month, col]) => (
@@ -390,6 +393,66 @@ function MeasuredChart({ habit }: { habit: Habit }) {
   );
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="mv-serif text-[26px] leading-none" style={{ color: 'var(--mv-ink)' }}>{value}</div>
+      <div className="mv-caps mt-1.5">{label}</div>
+    </div>
+  );
+}
+
+const ALL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * Everything, for good. The three ranges above it answer "how is it going";
+ * this one answers "what have I done", which is the same question the workout
+ * history answers, so they share a tab.
+ */
+function AllPanel({ now, onStartWorkout }: {
+  now: Date;
+  onStartWorkout?: (blocks: WorkoutBlock[]) => void;
+}) {
+  const all = useMemo(() => getAllTime(now), [now]);
+  const workouts = useMemo(() => loadSessions().filter(s => s.completedAt).length, []);
+
+  const since = all.startedOn
+    ? (() => {
+        const d = new Date(`${all.startedOn}T12:00:00`);
+        return `Since ${d.getDate()} ${ALL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+      })()
+    : 'Nothing logged yet';
+
+  return (
+    <>
+      <div className="mv-card p-5">
+        <div className="mv-caps mb-4">{since}</div>
+        <div className="grid grid-cols-2 gap-y-5 gap-x-3">
+          <Stat label="Days closed" value={`${all.daysClosed}`} />
+          <Stat label="Days tracked" value={`${all.daysTracked}`} />
+          <Stat label="Best streak" value={`${all.bestStreak}`} />
+          <Stat label="Workouts" value={`${workouts}`} />
+        </div>
+        {all.currentStreak > 0 && (
+          <div className="text-[13.5px] mt-5 pt-4" style={{
+            color: 'var(--mv-muted)', borderTop: '1px solid var(--mv-hairline)',
+          }}>
+            {all.currentStreak === all.bestStreak && all.bestStreak > 1
+              ? `On your best run yet: ${all.currentStreak} days.`
+              : `${all.currentStreak} day${all.currentStreak === 1 ? '' : 's'} running.`}
+          </div>
+        )}
+      </div>
+
+      <div className="mv-caps mx-1 mt-6 mb-2">Workouts</div>
+      <div className="-mx-4">
+        <WorkoutHistory onStartWorkout={onStartWorkout} />
+      </div>
+    </>
+  );
+}
+
 /** Every measured habit, each with its own card. */
 function MeasuredPanels() {
   const habits = useMemo(() => measuredHabits(), []);
@@ -410,7 +473,10 @@ function MeasuredPanels() {
   );
 }
 
-export function InsightsPage() {
+export function InsightsPage({ onStartWorkout }: {
+  /** Passed through to the workout history, so a past session can be repeated. */
+  onStartWorkout?: (blocks: WorkoutBlock[]) => void;
+} = {}) {
   const [range, setRange] = useState<Range>('week');
   const [chatOpen, setChatOpen] = useState(false);
   const now = useMemo(() => new Date(), []);
@@ -439,7 +505,7 @@ export function InsightsPage() {
         {/* The same segmented control Library uses for its tabs. */}
         <div className="px-4 mt-4">
           <div className="flex rounded-xl bg-slate-200 dark:bg-slate-800 p-1">
-            {(['week', 'month', 'year'] as Range[]).map(r => (
+            {(['week', 'month', 'year', 'all'] as Range[]).map(r => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
@@ -459,6 +525,7 @@ export function InsightsPage() {
           {range === 'week' && <WeekPanel now={now} />}
           {range === 'month' && <MonthPanel now={now} />}
           {range === 'year' && <YearPanel now={now} />}
+          {range === 'all' && <AllPanel now={now} onStartWorkout={onStartWorkout} />}
         </section>
 
         <section className="px-4 pt-6 mv-rise">

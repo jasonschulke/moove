@@ -237,6 +237,58 @@ export function getYearCompletion(now: Date = new Date(), logs?: HabitLogMap): D
   return out;
 }
 
+export interface AllTime {
+  /** The first day anything was logged, or null if nothing ever was. */
+  startedOn: string | null;
+  /** Days from the first log to today, inclusive. */
+  daysTracked: number;
+  /** Of those, how many closed completely. */
+  daysClosed: number;
+  /** The longest run of closed days, and the run ending today. */
+  bestStreak: number;
+  currentStreak: number;
+}
+
+/**
+ * The whole record, for the All tab.
+ *
+ * A rest day does not break a streak. It is a decision you made rather than a
+ * day you missed, and a scheme that punished it would just stop anyone taking
+ * one.
+ */
+export function getAllTime(now: Date = new Date(), logs?: HabitLogMap): AllTime {
+  const log = logs ?? loadHabitLogs();
+  const startedOn = trackingStartedOn(log);
+  const todayStr = formatLocalDate(now);
+  if (startedOn === null) {
+    return { startedOn, daysTracked: 0, daysClosed: 0, bestStreak: 0, currentStreak: 0 };
+  }
+
+  let daysTracked = 0;
+  let daysClosed = 0;
+  let best = 0;
+  let run = 0;
+  let current = 0;
+
+  const d = new Date(`${startedOn}T12:00:00`);
+  while (formatLocalDate(d) <= todayStr) {
+    const dateStr = formatLocalDate(d);
+    daysTracked++;
+    const kept = dayCompletion(dateStr, log) === 1 || isRestDay(dateStr);
+    if (kept) {
+      if (dayCompletion(dateStr, log) === 1) daysClosed++;
+      run++;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+    current = run;
+    d.setDate(d.getDate() + 1);
+  }
+
+  return { startedOn, daysTracked, daysClosed, bestStreak: best, currentStreak: current };
+}
+
 /** The label under the month grid. */
 export function monthLabel(now: Date = new Date()): string {
   return MONTHS[now.getMonth()];

@@ -308,6 +308,11 @@ body {
 .mv-number::-webkit-outer-spin-button,
 .mv-number::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
+/* Scrolls, but does not say so. The year grid is wider than the card on
+   purpose; a scrollbar sitting under it read as a stray element. */
+.mv-scroll-x { scrollbar-width: none; -ms-overflow-style: none; }
+.mv-scroll-x::-webkit-scrollbar { display: none; }
+
 /* Black is structure. */
 .mv-rule { height: 2px; background: var(--mv-ink); }
 

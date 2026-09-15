@@ -5,7 +5,7 @@ import {
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, habitValue, setHabitDone, toggleHabit, countDoneInWeek,
   recordHabitValue, dayScore, earliestMeasuredDate,
-  habitSeries, measuredHabits, describeGoal, HABIT_UNITS,
+  habitSeries, measuredHabits, HABIT_UNITS,
   habitsOn, loadArchivedHabits,
 } from './habits';
 import { loadBodyMetrics } from './storage';
@@ -165,15 +165,6 @@ describe('a measured habit with a goal', () => {
     expect(dayScore('2026-09-15', loadHabitLogs()).completed).toBe(1);
   });
 
-  it('shows its goal in the list, and nothing when it has none', () => {
-    expect(describeGoal(water())).toBe('Goal ≥ 64 oz');
-    expect(describeGoal(water({ target: 120, targetDirection: 'atMost', unit: 'min' })))
-      .toBe('Goal ≤ 120 min');
-    // No goal means no second line. The unit already shows wherever a reading
-    // does, so repeating it in the list was noise.
-    expect(describeGoal(water({ target: undefined }))).toBeNull();
-    expect(describeGoal(byId('walk'))).toBeNull();
-  });
 });
 
 describe('habitSeries and measuredHabits', () => {

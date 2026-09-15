@@ -263,7 +263,7 @@ function AppContent() {
         )
       )}
 
-      {currentPage === 'insights' && <InsightsPage />}
+      {currentPage === 'insights' && <InsightsPage onStartWorkout={handleBuilderStart} />}
 
       {currentPage === 'library' && (
         <LibraryPage onStartWorkout={handleBuilderStart} onOpenWorkoutFlow={() => setCurrentPage('workout')} />

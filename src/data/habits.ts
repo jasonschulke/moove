@@ -323,16 +323,6 @@ export function describeCadence(cadence: HabitCadence, heldByDefault: boolean): 
   }
 }
 
-/**
- * A measured habit's goal, for the second line of its card. Null when there
- * is no goal, and never a line about recording a number: the unit already
- * shows wherever a reading does, so saying it again in the list was noise.
- */
-export function describeGoal(habit: Habit): string | null {
-  if (!habit.unit || habit.target === undefined) return null;
-  return `Goal ${habit.targetDirection === 'atMost' ? '\u2264' : '\u2265'} ${habit.target} ${habit.unit}`;
-}
-
 export function loadHabitLogs(): HabitLogMap {
   try {
     const raw = localStorage.getItem(HABIT_LOGS_KEY);

@@ -544,13 +544,21 @@ export function SettingsPage({ theme, onToggleTheme }: SettingsPageProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              <input
-                type="password"
-                value={apiKey}
-                onChange={e => setApiKeyState(e.target.value)}
-                placeholder="sk-ant-api03-..."
-                className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono text-sm"
-              />
+              {/* In a form with autocomplete off, because a bare password input
+                  makes Chrome log a DOM warning and invites password managers
+                  to treat an API key as a site login. */}
+              <form onSubmit={e => e.preventDefault()} autoComplete="off">
+                <input
+                  type="password"
+                  name="anthropic-api-key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={apiKey}
+                  onChange={e => setApiKeyState(e.target.value)}
+                  placeholder="sk-ant-api03-..."
+                  className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono text-sm"
+                />
+              </form>
               <Button
                 variant="primary"
                 onClick={handleSaveKey}

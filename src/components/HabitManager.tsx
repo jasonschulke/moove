@@ -12,7 +12,7 @@ import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
 import {
   loadHabits, addHabit, updateHabit, deleteHabit, moveHabitAmong,
-  describeCadence, describeGoal, habitColor, HABIT_UNITS,
+  describeCadence, habitColor, HABIT_UNITS,
 } from '../data/habits';
 import { IconPicker } from './IconPicker';
 import { HabitIcon } from './HabitIcon';
@@ -349,21 +349,14 @@ function HabitCard({ habit, reordering, canUp, canDown, onEdit, onMove }: {
   onEdit: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
-  const goal = describeGoal(habit);
-
   const body = (
     <>
       <HabitIcon icon={habit.icon} size={22} style={{ color: habitColor(habit) }} />
       <span className="flex-grow min-w-0 text-[15px] truncate" style={{ color: 'var(--mv-ink)' }}>
         {habit.name}
       </span>
-      <span className="flex-shrink-0 text-right">
-        <span className="block text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
-          {describeCadence(habit.cadence, habit.heldByDefault)}
-        </span>
-        {goal && (
-          <span className="block text-[12.5px]" style={{ color: 'var(--mv-faint)' }}>{goal}</span>
-        )}
+      <span className="flex-shrink-0 text-[12.5px] text-right" style={{ color: 'var(--mv-muted)' }}>
+        {describeCadence(habit.cadence, habit.heldByDefault)}
       </span>
     </>
   );

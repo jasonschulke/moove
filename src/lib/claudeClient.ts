@@ -74,7 +74,19 @@ export async function sendToClaude({ messages, system, maxTokens }: ClaudeReques
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `API error: ${response.status}`);
+    const detail = errorData.error?.message;
+
+    // A 404 here is the model, not the key or the route, and the API says so
+    // in a shape no one can read: the whole message is "model: <id>".
+    if (response.status === 404) {
+      throw new Error(
+        `The coach is set to a model this key cannot reach: ${CLAUDE_MODEL}. ` +
+        'It may have been retired. Set VITE_CLAUDE_MODEL to a current one.');
+    }
+    if (response.status === 401) {
+      throw new Error('That API key was refused. Check it in Settings.');
+    }
+    throw new Error(detail || `The API returned ${response.status}.`);
   }
 
   const data = await response.json();
