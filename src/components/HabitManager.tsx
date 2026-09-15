@@ -10,7 +10,10 @@
 
 import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
-import { loadHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence, habitColor } from '../data/habits';
+import {
+  loadHabits, addHabit, updateHabit, deleteHabit, moveHabit,
+  describeCadence, describeMeasure, habitColor, HABIT_UNITS,
+} from '../data/habits';
 import { IconPicker } from './IconPicker';
 import { HabitIcon } from './HabitIcon';
 
@@ -25,7 +28,7 @@ const CADENCE_LABELS: Record<CadenceKind, string> = {
 const CADENCE_HELP: Record<CadenceKind, string> = {
   'daily': 'Counts toward the day ring. Owed every day.',
   'daily-quota': 'Counts toward the day ring, with a weekly allowance.',
-  'weekly': 'Owed a number of times a week, on no particular day. Not in the day ring.',
+  'weekly': 'Owed a number of times a week, on no particular day. Counts toward the day ring on the days you do it.',
 };
 
 interface DraftState {
@@ -36,10 +39,21 @@ interface DraftState {
   heldByDefault: boolean;
   icon: string | undefined;
   color: string | undefined;
+  /** Records a number rather than a tick. */
+  measured: boolean;
+  unit: string;
+  /** Kept as text while editing, so a half-typed number is not a value yet. */
+  target: string;
+  direction: 'atLeast' | 'atMost';
+  /** Carried through untouched. Only the seeded weight habit has one. */
+  source: 'bodyWeight' | undefined;
 }
 
-const blankDraft = (): DraftState =>
-  ({ id: null, name: '', kind: 'daily', perWeek: 3, heldByDefault: false, icon: undefined, color: undefined });
+const blankDraft = (): DraftState => ({
+  id: null, name: '', kind: 'daily', perWeek: 3, heldByDefault: false,
+  icon: undefined, color: undefined,
+  measured: false, unit: '', target: '', direction: 'atLeast', source: undefined,
+});
 
 const draftFrom = (habit: Habit): DraftState => ({
   id: habit.id,
@@ -49,6 +63,11 @@ const draftFrom = (habit: Habit): DraftState => ({
   heldByDefault: habit.heldByDefault,
   icon: habit.icon,
   color: habit.color,
+  measured: Boolean(habit.unit),
+  unit: habit.unit ?? '',
+  target: habit.target === undefined ? '' : String(habit.target),
+  direction: habit.targetDirection ?? 'atLeast',
+  source: habit.source,
 });
 
 function HabitEditor({ draft, onChange, onSave, onCancel }: {
@@ -58,6 +77,8 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
   onCancel: () => void;
 }) {
   const needsCount = draft.kind !== 'daily';
+  const hasTarget = draft.target.trim().length > 0;
+  const unitLabel = draft.unit.trim() || 'the unit';
 
   return (
     <div className="mv-card p-4 mb-3">
@@ -124,6 +145,99 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
       )}
 
       <button
+        onClick={() => onChange({ ...draft, measured: !draft.measured })}
+        aria-pressed={draft.measured}
+        aria-label="Record a number"
+        className="w-full text-left px-3 py-2.5 mb-3 rounded-[10px]"
+        style={{
+          border: `1.5px solid ${draft.measured ? 'var(--mv-green)' : 'var(--mv-track)'}`,
+          color: 'var(--mv-ink)',
+        }}
+      >
+        <span className="block text-[14px]">Record a number</span>
+        <span className="block text-[12px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>
+          Tapping it on Today opens a field rather than a tick box, and Insights charts it.
+        </span>
+      </button>
+
+      {draft.measured && (
+        <div className="px-3 py-3 mb-3 rounded-[10px]" style={{ border: '1.5px solid var(--mv-track)' }}>
+          <div className="mv-caps mb-2">Unit</div>
+          <input
+            type="text"
+            value={draft.unit}
+            onChange={e => onChange({ ...draft, unit: e.target.value })}
+            placeholder="lb"
+            aria-label="Unit"
+            maxLength={8}
+            className="w-full px-3 h-10 rounded-[10px] text-[15px] bg-transparent outline-none"
+            style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
+          />
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {HABIT_UNITS.map(u => (
+              <button
+                key={u}
+                onClick={() => onChange({ ...draft, unit: u })}
+                aria-label={`Unit ${u}`}
+                aria-pressed={draft.unit.trim() === u}
+                className="px-2.5 h-7 rounded-full text-[12.5px]"
+                style={
+                  draft.unit.trim() === u
+                    ? { background: 'var(--mv-green)', color: '#ffffff' }
+                    : { border: '1.5px solid var(--mv-track)', color: 'var(--mv-muted)' }
+                }
+              >{u}</button>
+            ))}
+          </div>
+
+          <div className="mv-caps mt-4 mb-2">Target</div>
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            value={draft.target}
+            onChange={e => onChange({ ...draft, target: e.target.value })}
+            placeholder="Optional"
+            aria-label="Target"
+            className="mv-number w-full px-3 h-10 rounded-[10px] text-[15px] bg-transparent outline-none"
+            style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
+          />
+
+          {hasTarget && (
+            <div className="flex gap-1.5 mt-2">
+              {([['atLeast', 'At least'], ['atMost', 'At most']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => onChange({ ...draft, direction: value })}
+                  aria-pressed={draft.direction === value}
+                  className="flex-1 h-9 rounded-[10px] text-[13px]"
+                  style={
+                    draft.direction === value
+                      ? { background: 'var(--mv-green)', color: '#ffffff' }
+                      : { border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }
+                  }
+                >{label}</button>
+              ))}
+            </div>
+          )}
+
+          <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--mv-muted)' }}>
+            {hasTarget
+              ? `The day counts only once the reading is ${draft.direction === 'atMost' ? 'at or under' : 'at or over'} ${draft.target.trim()} ${unitLabel}.`
+              : 'No target means any reading counts the day done. Right for something you are watching rather than chasing.'}
+          </p>
+
+          {draft.source === 'bodyWeight' && (
+            <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--mv-muted)' }}>
+              Readings here go to your weight history, which the chart draws and
+              Health imports write to.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!draft.measured && (
+      <button
         onClick={() => onChange({ ...draft, heldByDefault: !draft.heldByDefault })}
         aria-pressed={draft.heldByDefault}
         className="w-full text-left px-3 py-2.5 mb-4 rounded-[10px]"
@@ -137,6 +251,7 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
           For habits that are true until they are not, like a dry day. Starts each day done.
         </span>
       </button>
+      )}
 
       <div className="mb-4">
         <IconPicker
@@ -157,7 +272,7 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
         </button>
         <button
           onClick={onSave}
-          disabled={!draft.name.trim()}
+          disabled={!draft.name.trim() || (draft.measured && !draft.unit.trim())}
           className="flex-[2] h-11 rounded-[12px] text-[14px] font-semibold disabled:opacity-40"
           style={{ background: 'var(--mv-ink)', color: 'var(--mv-paper)' }}
         >
@@ -190,12 +305,26 @@ export function HabitManager() {
     const cadence: HabitCadence = draft.kind === 'daily'
       ? { kind: 'daily' }
       : { kind: draft.kind, perWeek: draft.perWeek };
+    // A half-typed target is not a number yet, and a measured habit cannot
+    // also be held: there is nothing to hold when the day asks for a reading.
+    const unit = draft.measured ? draft.unit.trim() : '';
+    const parsed = parseFloat(draft.target);
+    const target = unit && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+
     const fields = {
       name: draft.name.trim(),
       cadence,
-      heldByDefault: draft.heldByDefault,
+      heldByDefault: unit ? false : draft.heldByDefault,
       icon: draft.icon,
       color: draft.color,
+      unit: unit || undefined,
+      // Carried through even with the unit off. Everything that reads a source
+      // checks for a unit first, so a dormant one does nothing, and keeping it
+      // means turning measuring back on relinks weight to its own history
+      // rather than starting a second, empty one in the habit log.
+      source: draft.source,
+      target,
+      targetDirection: target === undefined ? undefined : draft.direction,
     };
 
     if (draft.id) updateHabit(draft.id, fields);
@@ -243,6 +372,11 @@ export function HabitManager() {
                 <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>
                   {describeCadence(habit.cadence, habit.heldByDefault)}
                 </div>
+                {describeMeasure(habit) && (
+                  <div className="text-[12.5px]" style={{ color: 'var(--mv-muted)' }}>
+                    {describeMeasure(habit)}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--mv-muted)' }}>
                 <button
@@ -297,7 +431,7 @@ export function HabitManager() {
       {habits.length > 0 && (
         <p className="text-[12.5px] leading-relaxed mt-4 px-1" style={{ color: 'var(--mv-muted)' }}>
           Today's ring counts the {dailyCount} habit{dailyCount === 1 ? '' : 's'} due every day.
-          Weekly habits carry their debt on their own row instead.
+          A weekly habit joins it only on the days you do one, so it can add to a day but never dilute it.
         </p>
       )}
     </div>

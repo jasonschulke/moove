@@ -11,7 +11,9 @@
  *
  * So the glyph is held back until the font reports itself loaded. Offline, a
  * habit simply shows no icon, which is tidy; online, the icon appears as soon
- * as the font lands. A habit with no icon set draws nothing either way.
+ * as the font lands. Either way the box keeps its place, and so does a habit
+ * with no icon set, so a list of habits lines up whether or not every one of
+ * them has been given an icon.
  */
 
 import { useEffect, useState } from 'react';
@@ -87,7 +89,17 @@ export function HabitIcon({ icon, size = 20, className = '', style }: HabitIconP
 
   useEffect(() => (shown ? undefined : subscribe(setShown)), [shown]);
 
-  if (!icon) return null;
+  // A habit with no icon holds the same space as one with an icon. Returning
+  // nothing here left every row without an icon shifted a box-width left.
+  if (!icon) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`flex-shrink-0 ${className}`}
+        style={{ display: 'inline-block', width: size, minWidth: size, height: size, ...style }}
+      />
+    );
+  }
 
   return (
     <span

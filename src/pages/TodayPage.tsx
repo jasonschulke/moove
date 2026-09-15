@@ -97,7 +97,14 @@ function HabitRow({ status, open, onPress, onSave, onCancel, onClear }: {
 
   // A measured habit reports its reading. Weekly habits carry their debt.
   // Plain daily ones say nothing extra; the ring already speaks for them.
-  const reading = habit.unit && value !== null ? `${value} ${habit.unit}` : null;
+  // With a target the row is a progress line; without one it is just the
+  // number. Before the first reading a target still shows, so the row says
+  // what it is asking for rather than nothing at all.
+  const reading = !habit.unit ? null
+    : value !== null && habit.target !== undefined ? `${value} / ${habit.target} ${habit.unit}`
+    : value !== null ? `${value} ${habit.unit}`
+    : habit.target !== undefined ? `Target ${habit.target} ${habit.unit}`
+    : null;
   const detail = perWeek > 0 ? `${doneThisWeek} of ${perWeek} this week` : null;
 
   return (

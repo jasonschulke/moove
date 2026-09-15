@@ -111,6 +111,59 @@ await openToday();
 const narrowed = await ring().getAttribute('aria-label');
 check('the ring narrows back to 4', narrowed === '0 of 4 done today', narrowed ?? '(missing)');
 
+// A habit can record a number rather than a tick, with a target that decides
+// whether the day counts. This is the whole path: build one in Library, log a
+// short reading on Today, then a good one.
+await openLibrary();
+await page.getByRole('button', { name: 'Add a Habit' }).click();
+await page.waitForTimeout(400);
+await page.getByLabel('Habit name').fill('Water');
+await page.getByRole('button', { name: 'Record a number' }).click();
+await page.waitForTimeout(300);
+check('the unit field appears once the habit records a number',
+  await page.getByLabel('Unit', { exact: true }).isVisible().catch(() => false));
+await page.getByRole('button', { name: 'Unit oz' }).click();
+await page.getByLabel('Target').fill('64');
+await page.waitForTimeout(300);
+check('a target offers a direction',
+  await page.getByRole('button', { name: 'At most' }).isVisible().catch(() => false));
+check('a measured habit drops the held option',
+  !(await page.getByText('Held unless I break it').isVisible().catch(() => false)));
+await page.getByRole('button', { name: 'Add habit' }).click();
+await page.waitForTimeout(600);
+check('the list says what the habit is asking for',
+  await page.getByText('Counts at least 64 oz').isVisible().catch(() => false));
+
+await openToday();
+check('the row states the target before anything is logged',
+  await page.getByText('Target 64 oz').isVisible().catch(() => false));
+await page.getByRole('button', { name: /^Water\b/ }).first().click();
+await page.waitForTimeout(400);
+await page.getByLabel('Water in oz').fill('48');
+await page.getByRole('button', { name: 'Save Water' }).click();
+await page.waitForTimeout(500);
+check('the row shows progress against the target',
+  await page.getByText('48 / 64 oz').isVisible().catch(() => false));
+const short = await ring().getAttribute('aria-label');
+check('a reading under the target does not close the habit',
+  short === '0 of 5 done today', short ?? '(missing)');
+
+await page.getByRole('button', { name: /^Water\b/ }).first().click();
+await page.waitForTimeout(400);
+await page.getByLabel('Water in oz').fill('64');
+await page.getByRole('button', { name: 'Save Water' }).click();
+await page.waitForTimeout(500);
+const met = await ring().getAttribute('aria-label');
+check('meeting the target closes it', met === '1 of 5 done today', met ?? '(missing)');
+
+await page.getByRole('button', { name: 'Insights', exact: true }).click();
+await page.waitForTimeout(900);
+check('a measured habit gets its own chart on Insights',
+  await page.getByText('Target at least 64 oz').isVisible().catch(() => false));
+check('weight still gets a card of its own',
+  await page.getByText('Tap Weight on Today to log one').isVisible().catch(() => false));
+await openToday();
+
 // An icon font renders its ligature as plain words until the glyph arrives.
 // On a phone with no signal that is what the row says, so the glyph is held
 // back until the font reports itself loaded.

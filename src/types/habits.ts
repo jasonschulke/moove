@@ -49,6 +49,14 @@ export interface Habit {
    * imports. Two stores for one number would disagree inside a day.
    */
   source?: 'bodyWeight';
+  /**
+   * The number the reading has to reach for the day to count. Absent means any
+   * reading counts, which is right for something you are watching rather than
+   * chasing, like body weight.
+   */
+  target?: number;
+  /** Which side of the target is good. Defaults to 'atLeast'. */
+  targetDirection?: 'atLeast' | 'atMost';
   order: number;
 }
 

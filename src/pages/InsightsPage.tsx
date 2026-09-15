@@ -12,10 +12,10 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
-import { loadBodyMetrics } from '../data/storage';
 import { say } from '../data/voice';
 import { HabitIcon } from '../components/HabitIcon';
-import { habitColor, loadHabits } from '../data/habits';
+import { habitColor, measuredHabits, habitSeries, loadHabitLogs } from '../data/habits';
+import type { Habit } from '../types/habits';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
@@ -240,67 +240,101 @@ function YearPanel({ now }: { now: Date }) {
  * habit like any other, so there is one place to record a thing and one place
  * to look at it.
  */
-function WeightPanel() {
-  const metrics = useMemo(() => loadBodyMetrics(), []);
+/**
+ * One measured habit's readings as a line.
+ *
+ * Any habit that carries a unit gets one of these, not just weight. The line
+ * takes the habit's own colour so the chart and the row on Today read as the
+ * same thing, and the target, if there is one, is drawn across it.
+ */
+function MeasuredChart({ habit }: { habit: Habit }) {
+  const series = useMemo(() => habitSeries(habit, loadHabitLogs()), [habit]);
+  const color = habitColor(habit);
 
-  const weighed = useMemo(
-    () => metrics.filter(m => typeof m.weight === 'number').sort((a, b) => a.date.localeCompare(b.date)),
-    [metrics]
-  );
-
-  if (weighed.length === 0) {
+  if (series.length === 0) {
     return (
-      <>
-        <div className="mv-caps mx-1 mb-2">Weight</div>
-        <div className="mv-card p-5">
-          <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
-            Nothing recorded yet. Tap Weight on Today to log one.
-          </div>
+      <div className="mv-card p-5">
+        <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
+          Nothing recorded yet. Tap {habit.name} on Today to log one.
         </div>
-      </>
+      </div>
     );
   }
 
-  const latest = weighed[weighed.length - 1];
+  const latest = series[series.length - 1];
   const monthAgo = new Date();
   monthAgo.setMonth(monthAgo.getMonth() - 1);
-  const baseline = weighed.find(m => new Date(m.date) >= monthAgo) ?? weighed[0];
-  const delta = latest.weight! - baseline.weight!;
+  const baseline = series.find(p => new Date(p.date) >= monthAgo) ?? series[0];
+  const delta = latest.value - baseline.value;
 
-  // The line takes the weight habit's own colour, so the chart and the row on
-  // Today read as the same thing.
-  const weightHabit = loadHabits().find(h => h.source === 'bodyWeight');
-  const lineColor = weightHabit ? habitColor(weightHabit) : GREEN;
+  // Only the last 40 readings. Beyond that the line is noise at this width.
+  const values = series.slice(-40).map(p => p.value);
 
-  const values = weighed.slice(-40).map(m => m.weight!);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  // The target has to be inside the scale or the dashed line falls off the card.
+  const bounds = habit.target === undefined ? values : [...values, habit.target];
+  const min = Math.min(...bounds);
+  const max = Math.max(...bounds);
   const span = max - min || 1;
+  const y = (v: number) => 44 - ((v - min) / span) * 38 - 3;
   const points = values
-    .map((v, i) => `${(i / Math.max(1, values.length - 1)) * 320},${44 - ((v - min) / span) * 38 - 3}`)
+    .map((v, i) => `${(i / Math.max(1, values.length - 1)) * 320},${y(v)}`)
     .join(' ');
 
+  // Falling is good for something you are cutting down, rising for something
+  // you are building up. With no target there is no good direction to claim.
+  const improving = habit.target === undefined
+    ? null
+    : habit.targetDirection === 'atMost' ? delta <= 0 : delta >= 0;
+
   return (
-    <>
-      <div className="mv-caps mx-1 mb-2">Weight</div>
-      <div className="mv-card p-4">
-        <div className="flex items-baseline justify-between mb-2">
-          <span className="mv-serif text-[26px]" style={{ color: 'var(--mv-ink)' }}>
-            {latest.weight!.toFixed(1)}
-            <span className="text-[14px]" style={{ color: 'var(--mv-faint)' }}> lb</span>
-          </span>
-          <span className="mv-caps" style={{ color: delta <= 0 ? GREEN : 'var(--mv-ink)' }}>
-            {delta > 0 ? '+' : ''}{delta.toFixed(1)} this month
-          </span>
-        </div>
-        {values.length > 1 && (
-          <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
-            <polyline points={points} fill="none" stroke={lineColor} strokeWidth="2"
-              strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          </svg>
-        )}
+    <div className="mv-card p-4">
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <span className="mv-serif text-[26px]" style={{ color: 'var(--mv-ink)' }}>
+          {latest.value.toFixed(1)}
+          <span className="text-[14px]" style={{ color: 'var(--mv-faint)' }}> {habit.unit}</span>
+        </span>
+        <span className="mv-caps text-right"
+          style={{ color: improving === false ? 'var(--mv-ink)' : improving === true ? GREEN : 'var(--mv-muted)' }}>
+          {delta > 0 ? '+' : ''}{delta.toFixed(1)} this month
+        </span>
       </div>
-    </>
+      {values.length > 1 && (
+        <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
+          {habit.target !== undefined && (
+            <line x1="0" y1={y(habit.target)} x2="320" y2={y(habit.target)}
+              stroke="var(--mv-track)" strokeWidth="1.5" strokeDasharray="4 4"
+              vectorEffect="non-scaling-stroke" />
+          )}
+          <polyline points={points} fill="none" stroke={color} strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
+      {habit.target !== undefined && (
+        <div className="mv-caps mt-2" style={{ color: 'var(--mv-faint)' }}>
+          Target {habit.targetDirection === 'atMost' ? 'at most' : 'at least'} {habit.target} {habit.unit}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Every measured habit, each with its own card. */
+function MeasuredPanels() {
+  const habits = useMemo(() => measuredHabits(), []);
+  if (habits.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-5">
+      {habits.map(habit => (
+        <div key={habit.id}>
+          <div className="mv-caps mx-1 mb-2 flex items-center gap-1.5">
+            <HabitIcon icon={habit.icon} size={14} style={{ color: habitColor(habit) }} />
+            {habit.name}
+          </div>
+          <MeasuredChart habit={habit} />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -356,7 +390,7 @@ export function InsightsPage() {
         </section>
 
         <section className="px-4 pt-6 mv-rise">
-          <WeightPanel />
+          <MeasuredPanels />
         </section>
       </div>
 

@@ -80,6 +80,12 @@ export const HABIT_ICON_GROUPS: { label: string; icons: string[] }[] = [
   },
 ];
 
+/**
+ * The units offered as chips in the editor. Typing something else is fine;
+ * these are the ones worth not making someone type on a phone.
+ */
+export const HABIT_UNITS = ['lb', 'kg', 'oz', 'cups', 'min', 'hr', 'steps', 'cal', 'pages', 'mi'];
+
 /** Every icon the picker offers, flattened. */
 export const HABIT_ICONS: string[] = HABIT_ICON_GROUPS.flatMap(g => g.icons);
 
@@ -139,7 +145,11 @@ export function saveHabits(habits: Habit[]): void {
   localStorage.setItem(HABITS_SEEDED_KEY, 'true');
 }
 
-export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean; icon?: string; color?: string; unit?: string }): Habit {
+export function addHabit(input: {
+  name: string; cadence: HabitCadence; heldByDefault: boolean;
+  icon?: string; color?: string; unit?: string; source?: 'bodyWeight';
+  target?: number; targetDirection?: 'atLeast' | 'atMost';
+}): Habit {
   const habits = loadHabits();
   const habit: Habit = { id: generateUUID(), order: habits.length, ...input };
   saveHabits([...habits, habit]);
@@ -197,6 +207,14 @@ export function describeCadence(cadence: HabitCadence, heldByDefault: boolean): 
   }
 }
 
+/** What a measured habit is asking for, in plain words. Null if it is a tick. */
+export function describeMeasure(habit: Habit): string | null {
+  if (!habit.unit) return null;
+  if (habit.target === undefined) return `Records a number in ${habit.unit}`;
+  const side = habit.targetDirection === 'atMost' ? 'at most' : 'at least';
+  return `Counts ${side} ${habit.target} ${habit.unit}`;
+}
+
 export function loadHabitLogs(): HabitLogMap {
   try {
     const raw = localStorage.getItem(HABIT_LOGS_KEY);
@@ -239,25 +257,55 @@ function weightByDate(): Map<string, number> {
  * default, which is true only for inverted habits like the dry day.
  */
 export function isHabitDone(habit: Habit, dateStr: string, logs: HabitLogMap): boolean {
-  if (habit.source === 'bodyWeight') return weightByDate().has(dateStr);
+  if (habit.unit) {
+    const value = habitValue(habit, dateStr, logs);
+    return value !== null && meetsTarget(habit, value);
+  }
   const explicit = logs[dateStr]?.[habit.id];
   if (explicit === undefined) return habit.heldByDefault;
-  // A measured habit is done by virtue of having a number at all.
+  // A number in the log still counts, so removing a unit does not unpick history.
   return typeof explicit === 'number' ? true : explicit;
+}
+
+/**
+ * Whether a reading is good enough. No target means any reading counts, which
+ * is right for something you are watching rather than chasing.
+ */
+export function meetsTarget(habit: Habit, value: number): boolean {
+  if (habit.target === undefined) return true;
+  return habit.targetDirection === 'atMost' ? value <= habit.target : value >= habit.target;
 }
 
 /** The number logged for a measured habit on a date, if there is one. */
 export function habitValue(habit: Habit, dateStr: string, logs: HabitLogMap): number | null {
+  if (!habit.unit) return null;
   if (habit.source === 'bodyWeight') return weightByDate().get(dateStr) ?? null;
   const entry = logs[dateStr]?.[habit.id];
   return typeof entry === 'number' ? entry : null;
+}
+
+/** Every reading a measured habit has, oldest first. What the chart draws. */
+export function habitSeries(habit: Habit, logs: HabitLogMap): { date: string; value: number }[] {
+  if (!habit.unit) return [];
+  const points = habit.source === 'bodyWeight'
+    ? [...weightByDate().entries()].map(([date, value]) => ({ date, value }))
+    : Object.entries(logs).flatMap(([date, entry]) => {
+        const value = entry?.[habit.id];
+        return typeof value === 'number' ? [{ date, value }] : [];
+      });
+  return points.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** The habits that record a number rather than a tick. */
+export function measuredHabits(): Habit[] {
+  return loadHabits().filter(h => h.unit);
 }
 
 /** Write one habit's state for one date. Returns the updated map. */
 export function setHabitDone(habitId: string, dateStr: string, done: boolean | number): HabitLogMap {
   const habit = loadHabits().find(h => h.id === habitId);
 
-  if (habit?.source === 'bodyWeight') {
+  if (habit?.unit && habit.source === 'bodyWeight') {
     // The number is the record. Ticking one of these without a reading is not
     // a thing you can do, so only clearing goes through here.
     if (typeof done === 'number') recordWeight(done, dateStr);

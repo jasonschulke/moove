@@ -5,6 +5,7 @@ import {
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, habitValue, setHabitDone, toggleHabit, countDoneInWeek,
   recordHabitValue, dayScore, earliestMeasuredDate,
+  meetsTarget, habitSeries, measuredHabits, describeMeasure, HABIT_UNITS,
 } from './habits';
 import { loadBodyMetrics } from './storage';
 import type { Habit } from '../types/habits';
@@ -109,6 +110,99 @@ describe('a measured habit', () => {
     expect(recordHabitValue('weight', '2026-09-15', 0)).toBeNull();
     expect(recordHabitValue('weight', '2026-09-15', NaN)).toBeNull();
     expect(isHabitDone(weight(), '2026-09-15', {})).toBe(false);
+  });
+});
+
+describe('a measured habit with a target', () => {
+  /** A measured habit of the user's own, which stores in the habit log. */
+  const water = (over: Partial<Habit> = {}): Habit => addHabit({
+    name: 'Water', cadence: { kind: 'daily' }, heldByDefault: false,
+    unit: 'oz', target: 64, targetDirection: 'atLeast', ...over,
+  });
+
+  it('is not done on a reading under the target', () => {
+    const h = water();
+    recordHabitValue(h.id, '2026-09-15', 48);
+    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(false);
+    // The reading is still kept, so the chart and the field show it.
+    expect(habitValue(h, '2026-09-15', loadHabitLogs())).toBe(48);
+  });
+
+  it('is done at the target exactly, and above it', () => {
+    const h = water();
+    recordHabitValue(h.id, '2026-09-15', 64);
+    recordHabitValue(h.id, '2026-09-16', 80);
+    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
+    expect(isHabitDone(h, '2026-09-16', loadHabitLogs())).toBe(true);
+  });
+
+  it('reverses for a habit you are keeping under', () => {
+    const h = water({ name: 'Screen time', unit: 'min', target: 120, targetDirection: 'atMost' });
+    recordHabitValue(h.id, '2026-09-15', 90);
+    recordHabitValue(h.id, '2026-09-16', 200);
+    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
+    expect(isHabitDone(h, '2026-09-16', loadHabitLogs())).toBe(false);
+  });
+
+  it('counts any reading when there is no target', () => {
+    const h = water({ target: undefined, targetDirection: undefined });
+    recordHabitValue(h.id, '2026-09-15', 1);
+    expect(isHabitDone(h, '2026-09-15', loadHabitLogs())).toBe(true);
+  });
+
+  it('keeps a measured habit out of the day until the target is met', () => {
+    const h = water();
+    recordHabitValue(h.id, '2026-09-15', 48);
+    expect(dayScore('2026-09-15', loadHabitLogs()).completed).toBe(0);
+    recordHabitValue(h.id, '2026-09-15', 64);
+    expect(dayScore('2026-09-15', loadHabitLogs()).completed).toBe(1);
+  });
+
+  it('judges a target directly', () => {
+    const h = water();
+    expect(meetsTarget(h, 63.9)).toBe(false);
+    expect(meetsTarget(h, 64)).toBe(true);
+    expect(meetsTarget({ ...h, target: undefined }, 0.1)).toBe(true);
+  });
+
+  it('describes itself in the list', () => {
+    expect(describeMeasure(water())).toBe('Counts at least 64 oz');
+    expect(describeMeasure(water({ target: 120, targetDirection: 'atMost', unit: 'min' })))
+      .toBe('Counts at most 120 min');
+    expect(describeMeasure(water({ target: undefined }))).toBe('Records a number in oz');
+    expect(describeMeasure(byId('walk'))).toBeNull();
+  });
+});
+
+describe('habitSeries and measuredHabits', () => {
+  it('lists only the habits that carry a unit', () => {
+    expect(measuredHabits().map(h => h.id)).toEqual(['weight']);
+    addHabit({ name: 'Water', cadence: { kind: 'daily' }, heldByDefault: false, unit: 'oz' });
+    expect(measuredHabits().map(h => h.name)).toEqual(['Weight', 'Water']);
+  });
+
+  it('returns readings oldest first, from the habit log', () => {
+    const h = addHabit({ name: 'Water', cadence: { kind: 'daily' }, heldByDefault: false, unit: 'oz' });
+    recordHabitValue(h.id, '2026-09-16', 70);
+    recordHabitValue(h.id, '2026-09-14', 50);
+    expect(habitSeries(h, loadHabitLogs()))
+      .toEqual([{ date: '2026-09-14', value: 50 }, { date: '2026-09-16', value: 70 }]);
+  });
+
+  it('reads weight from the body metrics instead', () => {
+    recordHabitValue('weight', '2026-09-15', 182.4);
+    expect(habitSeries(byId('weight'), loadHabitLogs()))
+      .toEqual([{ date: '2026-09-15', value: 182.4 }]);
+  });
+
+  it('is empty for a habit that is only a tick', () => {
+    setHabitDone('walk', '2026-09-15', true);
+    expect(habitSeries(byId('walk'), loadHabitLogs())).toEqual([]);
+  });
+
+  it('offers units worth not typing on a phone', () => {
+    expect(HABIT_UNITS).toContain('lb');
+    expect(new Set(HABIT_UNITS).size).toBe(HABIT_UNITS.length);
   });
 });
 
