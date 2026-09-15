@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  DEFAULT_HABITS, loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit,
+  DEFAULT_HABITS, loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence,
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, setHabitDone, toggleHabit, countDoneInWeek,
 } from './habits';
@@ -201,5 +201,18 @@ describe('managing the list', () => {
   it('survives corrupt stored data by falling back to the defaults', () => {
     localStorage.setItem('habit_definitions', '{not an array');
     expect(loadHabits().map(h => h.id)).toEqual(DEFAULT_HABITS.map(h => h.id));
+  });
+});
+
+describe('describeCadence', () => {
+  it('reads plainly for each cadence', () => {
+    expect(describeCadence({ kind: 'daily' }, false)).toBe('Every day');
+    expect(describeCadence({ kind: 'daily-quota', perWeek: 5 }, false)).toBe('5 of 7 days');
+    expect(describeCadence({ kind: 'weekly', perWeek: 3 }, false)).toBe('3× a week');
+  });
+
+  it('says so when a habit is held', () => {
+    expect(describeCadence({ kind: 'daily-quota', perWeek: 5 }, true))
+      .toBe('5 of 7 days, held unless you break it');
   });
 });

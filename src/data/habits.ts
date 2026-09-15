@@ -104,6 +104,17 @@ export function weeklyHabits(): Habit[] {
   return loadHabits().filter(h => h.cadence.kind === 'weekly');
 }
 
+/** How a habit's cadence reads in the list, in plain words. */
+/** The line under a habit's name in the list. */
+export function describeCadence(cadence: HabitCadence, heldByDefault: boolean): string {
+  const held = heldByDefault ? ', held unless you break it' : '';
+  switch (cadence.kind) {
+    case 'daily': return `Every day${held}`;
+    case 'daily-quota': return `${cadence.perWeek} of 7 days${held}`;
+    case 'weekly': return `${cadence.perWeek}× a week${held}`;
+  }
+}
+
 export function loadHabitLogs(): HabitLogMap {
   try {
     const raw = localStorage.getItem(HABIT_LOGS_KEY);

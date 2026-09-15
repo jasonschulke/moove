@@ -149,9 +149,14 @@ for (const range of ['month', 'year']) {
   check(`Insights renders the ${range}`, pageErrors.length === before, pageErrors.slice(before).join(' | '));
 }
 
-// Workout is reachable without a tab.
+// Workout is reachable without a tab. Library opens on Habits now, so the
+// start flow is one tab across.
 await page.getByRole('button', { name: 'Library', exact: true }).click();
 await page.waitForTimeout(700);
+check('Library opens on Habits',
+  await page.getByRole('button', { name: 'Add a Habit' }).isVisible().catch(() => false));
+await page.getByRole('button', { name: 'Workouts', exact: true }).click();
+await page.waitForTimeout(500);
 await page.getByRole('button', { name: 'Start a Workout' }).click();
 await page.waitForTimeout(800);
 check('Library opens the workout flow',

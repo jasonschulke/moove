@@ -10,7 +10,7 @@
 
 import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
-import { loadHabits, addHabit, updateHabit, deleteHabit, moveHabit } from '../data/habits';
+import { loadHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence } from '../data/habits';
 
 type CadenceKind = HabitCadence['kind'];
 
@@ -25,16 +25,6 @@ const CADENCE_HELP: Record<CadenceKind, string> = {
   'daily-quota': 'Counts toward the day ring, with a weekly allowance.',
   'weekly': 'Owed a number of times a week, on no particular day. Not in the day ring.',
 };
-
-/** The line under a habit's name in the list. */
-export function describeCadence(cadence: HabitCadence, heldByDefault: boolean): string {
-  const held = heldByDefault ? ', held unless you break it' : '';
-  switch (cadence.kind) {
-    case 'daily': return `Every day${held}`;
-    case 'daily-quota': return `${cadence.perWeek} of 7 days${held}`;
-    case 'weekly': return `${cadence.perWeek}× a week${held}`;
-  }
-}
 
 interface DraftState {
   id: string | null;
