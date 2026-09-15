@@ -211,3 +211,52 @@ body {
     rgba(16, 185, 129, 0.15) 8px
   );
 }
+
+/* ==========================================================================
+   Today
+   Scoped to the Today screen. The rest of the app keeps its slate palette.
+   ========================================================================== */
+
+:root {
+  --today-paper: #faf7f2;
+  --today-ink: #14110d;
+  --today-green: #047857;
+  --today-track: #ece7dd;
+  --today-muted: #8c8478;
+  --today-faint: #a89f90;
+  --today-hairline: #e5dfd4;
+}
+
+.today-paper { background: var(--today-paper); color: var(--today-ink); }
+
+.today-card {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(20, 17, 13, 0.05), 0 10px 26px -14px rgba(20, 17, 13, 0.22);
+}
+
+/* The serif is the voice. Exactly two jobs on Today: the ring fraction and
+   the suggestion name. */
+.today-serif { font-family: 'Newsreader', Georgia, serif; }
+
+.today-caps {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--today-muted);
+}
+
+.today-rule { height: 2px; background: var(--today-ink); }
+
+/* Motion is a settle on load, not a permanent effect. */
+.today-rise { animation: today-rise-in 0.55s cubic-bezier(0.16, 0.8, 0.3, 1) both; }
+
+@keyframes today-rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-rise { animation: none; }
+}

@@ -1,8 +1,10 @@
 type WorkoutType = 'strength' | 'cardio-run' | 'cardio-walk' | null;
 
+type NavPage = 'today' | 'home' | 'workout' | 'library' | 'chat' | 'settings';
+
 interface NavBarProps {
-  currentPage: 'home' | 'workout' | 'library' | 'chat' | 'settings';
-  onNavigate: (page: 'home' | 'workout' | 'library' | 'chat' | 'settings') => void;
+  currentPage: NavPage;
+  onNavigate: (page: NavPage) => void;
   hasActiveWorkout: boolean;
   workoutType?: WorkoutType;
   workoutProgress?: number;
@@ -101,7 +103,7 @@ function WorkoutIcon({ type }: { type: WorkoutType }) {
 export function NavBar({ currentPage, onNavigate, hasActiveWorkout, workoutType, workoutProgress }: NavBarProps) {
   const getButtonClass = (page: string) => {
     const isActive = currentPage === page;
-    return `flex flex-col items-center gap-1 px-3 py-2 transition-colors ${
+    return `flex flex-col items-center gap-1 px-2 py-2 transition-colors ${
       isActive
         ? 'text-slate-800 dark:text-slate-100'
         : 'text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200'
@@ -121,6 +123,14 @@ export function NavBar({ currentPage, onNavigate, hasActiveWorkout, workoutType,
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 safe-bottom">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+        <button onClick={() => onNavigate('today')} className={getButtonClass('today')}>
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" strokeWidth={getStrokeWidth('today')} />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={getStrokeWidth('today')} d="M12 7.5V12l3 2" />
+          </svg>
+          <span className={`text-xs ${getFontWeight('today')}`}>Today</span>
+        </button>
+
         <button onClick={() => onNavigate('home')} className={getButtonClass('home')}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={getStrokeWidth('home')} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

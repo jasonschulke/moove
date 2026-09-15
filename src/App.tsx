@@ -22,6 +22,7 @@ import { NavBar } from './components/NavBar';
 import { WorkoutBuilder } from './components/WorkoutBuilder';
 import { WorkoutStartFlow } from './components/WorkoutStartFlow';
 import { ClaudeChat } from './components/ClaudeChat';
+import { TodayPage } from './pages/TodayPage';
 import { HomePage } from './pages/HomePage';
 import { WorkoutPage } from './pages/WorkoutPage';
 import { LibraryPage } from './pages/LibraryPage';
@@ -38,13 +39,13 @@ const isAuthCallback = () => {
 };
 
 /** Available pages in the app */
-type Page = 'home' | 'workout' | 'library' | 'chat' | 'settings';
+type Page = 'today' | 'home' | 'workout' | 'library' | 'chat' | 'settings';
 
 /** Theme options */
 type Theme = 'dark' | 'light';
 
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [currentPage, setCurrentPage] = useState<Page>('today');
   const [homeRefreshKey, setHomeRefreshKey] = useState(0);
   const [showBuilder, setShowBuilder] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
@@ -211,6 +212,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen transition-colors bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      {currentPage === 'today' && <TodayPage />}
       {currentPage === 'home' && <HomePage key={homeRefreshKey} />}
 
       {currentPage === 'workout' && (

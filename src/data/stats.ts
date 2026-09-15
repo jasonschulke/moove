@@ -8,6 +8,7 @@
 
 import type { ExerciseLog, WorkoutBlock, WorkoutSession } from '../types';
 import { formatLocalDate, loadSessions, loadSkipCounts } from './storage';
+import { startOfWeek } from '../utils/week';
 
 /** Local midnight for a date string, as a timestamp. */
 function startOfDay(dateStr: string): number {
@@ -140,12 +141,13 @@ export function getWorkoutStats(): {
   const sessions = loadSessions().filter(s => s.completedAt);
 
   const now = new Date();
-  const oneWeekAgo = new Date(now);
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  // Monday to Sunday, not a rolling seven days. Every cadence number in the
+  // app is measured against the calendar week.
+  const weekStart = startOfWeek(now);
   const oneMonthAgo = new Date(now);
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-  const thisWeek = sessions.filter(s => new Date(s.startedAt) >= oneWeekAgo).length;
+  const thisWeek = sessions.filter(s => new Date(s.startedAt) >= weekStart).length;
   const thisMonth = sessions.filter(s => new Date(s.startedAt) >= oneMonthAgo).length;
 
   const durations = sessions
