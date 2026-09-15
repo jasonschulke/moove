@@ -724,6 +724,26 @@ export function saveBodyMetrics(metrics: BodyMetric[]): void {
   triggerSyncIfLoggedIn();
 }
 
+/**
+ * Records a weight for a date, replacing whatever was there. Entered in the
+ * app rather than waiting on an Apple Health export, which was the only way in
+ * before and meant the chart stayed empty for anyone who does not use it.
+ */
+export function recordWeight(weight: number, dateStr: string = formatLocalDate(new Date())): BodyMetric[] {
+  const metrics = loadBodyMetrics().filter(m => m.date !== dateStr);
+  const next = [...metrics, { date: dateStr, weight, source: 'manual' }]
+    .sort((a, b) => a.date.localeCompare(b.date));
+  saveBodyMetrics(next);
+  return next;
+}
+
+/** Removes the entry for a date, if there is one. */
+export function removeWeight(dateStr: string): BodyMetric[] {
+  const next = loadBodyMetrics().filter(m => m.date !== dateStr);
+  saveBodyMetrics(next);
+  return next;
+}
+
 export function importBodyMetrics(newMetrics: BodyMetric[], overwrite = false): number {
   const existing = loadBodyMetrics();
   if (overwrite) {

@@ -6,15 +6,17 @@
  * three thousand. "None" is a real option, so an icon is never forced.
  */
 
-import { HABIT_ICON_GROUPS } from '../data/habits';
+import { HABIT_ICON_GROUPS, HABIT_COLORS } from '../data/habits';
 import { HabitIcon } from './HabitIcon';
 
 interface IconPickerProps {
   value?: string;
   onChange: (icon: string | undefined) => void;
+  color?: string;
+  onColorChange: (color: string | undefined) => void;
 }
 
-export function IconPicker({ value, onChange }: IconPickerProps) {
+export function IconPicker({ value, onChange, color, onColorChange }: IconPickerProps) {
   const cell = (icon: string | undefined, key: string, label: string) => {
     const selected = value === icon;
     return (
@@ -58,6 +60,30 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
               {group.icons.map(icon => cell(icon, icon, icon.replace(/_/g, ' ')))}
             </div>
           </div>
+        ))}
+      </div>
+
+      <div className="mv-caps mt-3 mb-2">Colour</div>
+      <div className="flex flex-wrap gap-2">
+        {HABIT_COLORS.map(c => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => onColorChange(color === c.key ? undefined : c.key)}
+            aria-label={c.label}
+            aria-pressed={color === c.key}
+            className="rounded-full"
+            style={{
+              width: 30,
+              height: 30,
+              background: c.value,
+              // The chosen one wears a ring drawn outside itself, so the
+              // swatch stays a full circle of its own colour.
+              boxShadow: color === c.key
+                ? '0 0 0 2px var(--mv-paper), 0 0 0 4px var(--mv-ink)'
+                : 'none',
+            }}
+          />
         ))}
       </div>
     </div>

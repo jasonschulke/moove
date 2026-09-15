@@ -15,20 +15,21 @@ const bar = (id: string, done: number, target: number): HabitBar =>
 beforeEach(() => { localStorage.clear(); });
 
 describe('dayCompletion', () => {
-  it('counts the held dry day on an untouched day', () => {
-    expect(dayCompletion('2026-09-16', {})).toBeCloseTo(1 / 3);
+  it('is zero on an untouched day', () => {
+    // Nothing is held by default, so nothing counts until it is logged.
+    expect(dayCompletion('2026-09-16', {})).toBe(0);
   });
 
   it('is 1 when every daily habit is done', () => {
-    expect(dayCompletion('2026-09-16', { '2026-09-16': { walk: true, dog: true } })).toBe(1);
+    expect(dayCompletion('2026-09-16', { '2026-09-16': { walk: true, dog: true, dry: true } })).toBe(1);
   });
 
-  it('is 0 when the dry day is broken and nothing else is done', () => {
-    expect(dayCompletion('2026-09-16', { '2026-09-16': { dry: false } })).toBe(0);
+  it('counts one third for one of three', () => {
+    expect(dayCompletion('2026-09-16', { '2026-09-16': { dry: true } })).toBeCloseTo(1 / 3);
   });
 
   it('ignores weekly habits', () => {
-    expect(dayCompletion('2026-09-16', { '2026-09-16': { lift: true, run: true } })).toBeCloseTo(1 / 3);
+    expect(dayCompletion('2026-09-16', { '2026-09-16': { lift: true, run: true } })).toBe(0);
   });
 });
 
@@ -73,7 +74,7 @@ describe('getWeekReview', () => {
 
   it('counts a fully closed day', () => {
     const logs: HabitLogMap = {
-      '2026-09-14': { walk: true, dog: true },
+      '2026-09-14': { walk: true, dog: true, dry: true },
       '2026-09-15': { walk: true },
     };
     const review = getWeekReview(wednesday(), logs);
@@ -87,8 +88,11 @@ describe('getWeekReview', () => {
   });
 
   it('never reports more done than the target', () => {
-    // The dry day is held all seven days but its target is five.
-    const dry = getWeekReview(wednesday(), {}).bars.find(b => b.habit.id === 'dry')!;
+    // Logged on all seven days, but the dry day's target is five.
+    const logs: HabitLogMap = Object.fromEntries(
+      Array.from({ length: 7 }, (_, i) => [`2026-09-${14 + i}`, { dry: true }])
+    );
+    const dry = getWeekReview(wednesday(), logs).bars.find(b => b.habit.id === 'dry')!;
     expect(dry.done).toBe(5);
   });
 
@@ -110,7 +114,7 @@ describe('getMonthCompletion', () => {
   });
 
   it('scores days that have happened', () => {
-    const days = getMonthCompletion(wednesday(), { '2026-09-15': { walk: true, dog: true } });
+    const days = getMonthCompletion(wednesday(), { '2026-09-15': { walk: true, dog: true, dry: true } });
     expect(days.find(d => d.dayOfMonth === 15)!.completion).toBe(1);
   });
 
@@ -155,7 +159,7 @@ describe('untracked history', () => {
   });
 
   it('scores tracked days normally', () => {
-    const logs: HabitLogMap = { '2026-09-14': { walk: true, dog: true } };
+    const logs: HabitLogMap = { '2026-09-14': { walk: true, dog: true, dry: true } };
     expect(getMonthCompletion(wednesday(), logs).find(d => d.dayOfMonth === 14)!.completion).toBe(1);
   });
 

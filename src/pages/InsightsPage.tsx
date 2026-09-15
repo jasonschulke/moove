@@ -7,14 +7,15 @@
  * looking at rather than a separate room.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
-import { loadBodyMetrics } from '../data/storage';
+import { loadBodyMetrics, recordWeight, formatLocalDate } from '../data/storage';
 import { say } from '../data/voice';
 import { HabitIcon } from '../components/HabitIcon';
+import { habitColor } from '../data/habits';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
@@ -71,7 +72,7 @@ function WeekPanel({ now }: { now: Date }) {
 
       {review.bars.map(b => (
         <div key={b.habit.id} className="flex items-center gap-2 py-1.5">
-          <HabitIcon icon={b.habit.icon} size={17} style={{ color: 'var(--mv-faint)' }} />
+          <HabitIcon icon={b.habit.icon} size={17} style={{ color: habitColor(b.habit) }} />
           <span className="w-[80px] flex-shrink-0 text-[13px] truncate" style={{ color: 'var(--mv-ink)' }}>
             {b.habit.name}
           </span>
@@ -80,7 +81,7 @@ function WeekPanel({ now }: { now: Date }) {
               className="block h-1.5 rounded-full"
               style={{
                 width: `${Math.round((b.done / b.target) * 100)}%`,
-                background: GREEN,
+                background: habitColor(b.habit),
                 transition: 'width 0.5s cubic-bezier(0.16, 0.8, 0.3, 1)',
               }}
             />
@@ -148,13 +149,13 @@ function YearPanel({ now }: { now: Date }) {
     <>
       <div className="mv-caps mx-1 mb-2">{now.getFullYear()}</div>
       <div className="mv-card p-4">
-        <div className="flex gap-[1px] justify-center">
+        <div className="flex gap-[2px] justify-center">
           {columns.map((col, ci) => (
-            <div key={ci} className="flex flex-col gap-[1px]">
+            <div key={ci} className="flex flex-col gap-[2px]">
               {col.map((d, di) => (
                 <div
                   key={di}
-                                    style={{ width: 5, height: 5, borderRadius: 1, background: shade(d) }}
+                                    style={{ width: 4, height: 30, borderRadius: 2, background: shade(d) }}
                   title={d ? `${d.dateStr}: ${Math.round(d.completion * 100)}%` : ''}
                 />
               ))}
@@ -167,31 +168,84 @@ function YearPanel({ now }: { now: Date }) {
 }
 
 function WeightPanel() {
-  const metrics = useMemo(
-    () => loadBodyMetrics().filter(m => typeof m.weight === 'number').sort((a, b) => a.date.localeCompare(b.date)),
-    []
+  const [metrics, setMetrics] = useState(() => loadBodyMetrics());
+  const [entering, setEntering] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const weighed = useMemo(
+    () => metrics.filter(m => typeof m.weight === 'number').sort((a, b) => a.date.localeCompare(b.date)),
+    [metrics]
   );
 
-  if (metrics.length === 0) {
+  const save = useCallback(() => {
+    const value = parseFloat(draft);
+    // A fat-fingered decimal is easy and a silent bad point ruins the line.
+    if (!Number.isFinite(value) || value <= 0 || value > 1500) return;
+    setMetrics(recordWeight(Math.round(value * 10) / 10));
+    setDraft('');
+    setEntering(false);
+  }, [draft]);
+
+  const today = formatLocalDate(new Date());
+  const loggedToday = weighed.some(m => m.date === today);
+
+  const entry = entering ? (
+    <div className="flex items-center gap-2 mt-3">
+      <input
+        type="number"
+        inputMode="decimal"
+        step="0.1"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); }}
+        placeholder="lb"
+        aria-label="Weight in pounds"
+        autoFocus
+        className="flex-grow min-w-0 px-3 py-2 rounded-[10px] text-[15px] bg-transparent outline-none"
+        style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
+      />
+      <button
+        onClick={() => { setEntering(false); setDraft(''); }}
+        className="mv-caps px-2 py-2"
+      >Cancel</button>
+      <button
+        onClick={save}
+        disabled={!draft.trim()}
+        className="px-4 h-10 rounded-[10px] text-[13px] font-semibold disabled:opacity-40"
+        style={{ background: 'var(--mv-ink)', color: 'var(--mv-paper)' }}
+      >Save</button>
+    </div>
+  ) : (
+    <button
+      onClick={() => setEntering(true)}
+      className="mv-caps mt-3"
+      style={{ color: 'var(--mv-ink)' }}
+    >
+      {loggedToday ? "Update today's weight" : "Log today's weight"}
+    </button>
+  );
+
+  if (weighed.length === 0) {
     return (
       <>
         <div className="mv-caps mx-1 mb-2">Weight</div>
         <div className="mv-card p-5">
           <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
-            Nothing recorded. Import from Apple Health in Settings.
+            Nothing recorded yet.
           </div>
+          {entry}
         </div>
       </>
     );
   }
 
-  const latest = metrics[metrics.length - 1];
+  const latest = weighed[weighed.length - 1];
   const monthAgo = new Date();
   monthAgo.setMonth(monthAgo.getMonth() - 1);
-  const baseline = metrics.find(m => new Date(m.date) >= monthAgo) ?? metrics[0];
+  const baseline = weighed.find(m => new Date(m.date) >= monthAgo) ?? weighed[0];
   const delta = latest.weight! - baseline.weight!;
 
-  const values = metrics.slice(-40).map(m => m.weight!);
+  const values = weighed.slice(-40).map(m => m.weight!);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
@@ -212,10 +266,13 @@ function WeightPanel() {
             {delta > 0 ? '+' : ''}{delta.toFixed(1)} this month
           </span>
         </div>
-        <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
-          <polyline points={points} fill="none" stroke={GREEN} strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        </svg>
+        {values.length > 1 && (
+          <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
+            <polyline points={points} fill="none" stroke={GREEN} strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+        {entry}
       </div>
     </>
   );

@@ -42,23 +42,24 @@ describe('getTodayView', () => {
     expect(getTodayView(tuesday(), {}).total).toBe(3);
   });
 
-  it('counts the held dry day as already complete on an empty day', () => {
-    expect(getTodayView(tuesday(), {}).completed).toBe(1);
+  it('starts an untouched day at zero', () => {
+    // Nothing is held by default any more, so nothing is done before you do it.
+    expect(getTodayView(tuesday(), {}).completed).toBe(0);
   });
 
   it('counts each logged daily habit', () => {
-    const logs: HabitLogMap = { '2026-09-15': { walk: true, dog: true } };
+    const logs: HabitLogMap = { '2026-09-15': { walk: true, dog: true, dry: true } };
     expect(getTodayView(tuesday(), logs).completed).toBe(3);
   });
 
-  it('drops the score when the dry day is broken', () => {
+  it('counts only what was logged', () => {
     const logs: HabitLogMap = { '2026-09-15': { walk: true, dog: true, dry: false } };
     expect(getTodayView(tuesday(), logs).completed).toBe(2);
   });
 
   it('never counts lift or run toward the day score', () => {
     const view = getTodayView(tuesday(), { '2026-09-15': { lift: true, run: true } });
-    expect(view.completed).toBe(1); // the held dry day only
+    expect(view.completed).toBe(0);
     expect(view.total).toBe(3);
   });
 
@@ -112,7 +113,7 @@ describe('getTodayView suggestion', () => {
   it('suggests nothing when everything is settled', () => {
     const logs: HabitLogMap = {
       '2026-09-14': { lift: true, run: true },
-      '2026-09-15': { lift: true, walk: true, dog: true },
+      '2026-09-15': { lift: true, walk: true, dog: true, dry: true },
       '2026-09-16': { lift: true },
     };
     expect(getTodayView(tuesday(), logs).suggestion).toBeNull();
@@ -128,6 +129,6 @@ describe('getTodayView suggestion', () => {
   it('still scores the daily habits on a rest day', () => {
     localStorage.setItem('rest_days', JSON.stringify(['2026-09-15']));
     const view = getTodayView(tuesday(), { '2026-09-15': { walk: true } });
-    expect([view.total, view.completed]).toEqual([3, 2]);
+    expect([view.total, view.completed]).toEqual([3, 1]);
   });
 });

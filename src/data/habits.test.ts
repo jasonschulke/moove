@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  DEFAULT_HABITS, HABIT_ICONS, HABIT_ICON_GROUPS,
+  DEFAULT_HABITS, HABIT_ICONS, HABIT_ICON_GROUPS, HABIT_COLORS, habitColor,
   loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence,
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, setHabitDone, toggleHabit, countDoneInWeek,
@@ -12,6 +12,10 @@ const byId = (id: string): Habit => {
   if (!h) throw new Error(`no habit ${id}`);
   return h;
 };
+
+/** A habit that opts into starting each day done, which none of the five do. */
+const held = (): Habit =>
+  ({ id: 'kept', name: 'Kept', cadence: { kind: 'daily' }, heldByDefault: true, order: 9 });
 
 beforeEach(() => { localStorage.clear(); });
 
@@ -25,8 +29,10 @@ describe('the seeded defaults', () => {
     expect(byId('run').cadence).toEqual({ kind: 'weekly', perWeek: 1 });
   });
 
-  it('hold the dry day by default and nothing else', () => {
-    expect(loadHabits().filter(h => h.heldByDefault).map(h => h.id)).toEqual(['dry']);
+  it('hold nothing by default', () => {
+    // A habit that starts each day ticked made the ring read 1 of 3 before
+    // anything had happened. The mechanism stays; the default does not.
+    expect(loadHabits().filter(h => h.heldByDefault)).toEqual([]);
   });
 });
 
@@ -42,14 +48,14 @@ describe('isHabitDone', () => {
     expect(isHabitDone(byId('walk'), '2026-09-15', {})).toBe(false);
   });
 
-  it('is true by default for a held habit', () => {
-    expect(isHabitDone(byId('dry'), '2026-09-15', {})).toBe(true);
+  it('is true by default for a habit that opts into being held', () => {
+    expect(isHabitDone(held(), '2026-09-15', {})).toBe(true);
   });
 
   it('prefers an explicit log over the default, in both directions', () => {
-    const logs = { '2026-09-15': { walk: true, dry: false } };
+    const logs = { '2026-09-15': { walk: true, kept: false } };
     expect(isHabitDone(byId('walk'), '2026-09-15', logs)).toBe(true);
-    expect(isHabitDone(byId('dry'), '2026-09-15', logs)).toBe(false);
+    expect(isHabitDone(held(), '2026-09-15', logs)).toBe(false);
   });
 
   it('does not let one day leak into another', () => {
@@ -101,8 +107,8 @@ describe('toggleHabit', () => {
   });
 
   it('breaks a held habit on the first tap', () => {
-    const logs = toggleHabit(byId('dry'), '2026-09-15');
-    expect(isHabitDone(byId('dry'), '2026-09-15', logs)).toBe(false);
+    const logs = toggleHabit(held(), '2026-09-15');
+    expect(isHabitDone(held(), '2026-09-15', logs)).toBe(false);
   });
 });
 
@@ -120,12 +126,12 @@ describe('countDoneInWeek', () => {
   });
 
   it('counts a held habit on every day of the week that was not broken', () => {
-    expect(countDoneInWeek(byId('dry'), tuesday, {})).toBe(7);
+    expect(countDoneInWeek(held(), tuesday, {})).toBe(7);
   });
 
   it('subtracts the days a held habit was broken', () => {
-    const logs = { '2026-09-14': { dry: false }, '2026-09-16': { dry: false } };
-    expect(countDoneInWeek(byId('dry'), tuesday, logs)).toBe(5);
+    const logs = { '2026-09-14': { kept: false }, '2026-09-16': { kept: false } };
+    expect(countDoneInWeek(held(), tuesday, logs)).toBe(5);
   });
 
   it('is zero for an ordinary habit with no logs', () => {
@@ -266,5 +272,53 @@ describe('icons', () => {
   it('tolerates a habit stored before icons existed', () => {
     saveHabits([{ id: 'old', name: 'Old', cadence: { kind: 'daily' }, heldByDefault: false, order: 0 }]);
     expect(loadHabits()[0].icon).toBeUndefined();
+  });
+});
+
+describe('colour', () => {
+  it('gives every seeded habit one', () => {
+    expect(loadHabits().every(h => !!h.color)).toBe(true);
+  });
+
+  it('only seeds colours the picker offers', () => {
+    const keys = HABIT_COLORS.map(c => c.key);
+    for (const habit of DEFAULT_HABITS) expect(keys, habit.name).toContain(habit.color!);
+  });
+
+  it('gives the five different colours, so a list reads as a list', () => {
+    const used = DEFAULT_HABITS.map(h => h.color);
+    expect(new Set(used).size).toBe(used.length);
+  });
+
+  it('resolves to a CSS colour', () => {
+    expect(habitColor({ color: 'plum' })).toBe('#7c3aed');
+  });
+
+  it('falls back to the app green with no colour or an unknown one', () => {
+    expect(habitColor({})).toBe('var(--mv-green)');
+    expect(habitColor({ color: 'chartreuse' })).toBe('var(--mv-green)');
+  });
+
+  it('stores a colour on a new habit and changes it on edit', () => {
+    const added = addHabit({
+      name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false, color: 'teal',
+    });
+    expect(loadHabits().find(h => h.id === added.id)!.color).toBe('teal');
+    updateHabit(added.id, { color: 'rose' });
+    expect(loadHabits().find(h => h.id === added.id)!.color).toBe('rose');
+  });
+});
+
+describe('the held-by-default migration', () => {
+  it('turns off a habit that was held, once', () => {
+    saveHabits([{ id: 'dry', name: 'Dry day', cadence: { kind: 'daily' }, heldByDefault: true, order: 0 }]);
+    localStorage.removeItem('habit_held_default_off');
+    expect(loadHabits()[0].heldByDefault).toBe(false);
+  });
+
+  it('leaves a later deliberate choice alone', () => {
+    loadHabits();                       // runs the migration
+    updateHabit('walk', { heldByDefault: true });
+    expect(loadHabits().find(h => h.id === 'walk')!.heldByDefault).toBe(true);
   });
 });
