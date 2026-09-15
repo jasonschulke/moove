@@ -73,6 +73,9 @@ await page.reload({ waitUntil: 'networkidle' });
 await settle();
 
 check('Today is the landing tab', await ring().isVisible().catch(() => false));
+check('Today carries the mark and wordmark',
+  (await page.locator('header img[alt="Moove"]').count()) === 2,
+  String(await page.locator('header img[alt="Moove"]').count()));
 
 // The held dry day means an untouched day starts at 1 of 3.
 const start = await ring().getAttribute('aria-label').catch(() => null);
@@ -124,20 +127,39 @@ check('rest day can be cleared', await page.getByText('Next').first().isVisible(
 const navLabels = await page.locator('nav button').allInnerTexts();
 check('the nav is exactly four tabs',
   navLabels.length === 4, navLabels.join(', '));
-check('Home and Coach are gone',
-  !navLabels.some(t => /Home|Coach/.test(t)), navLabels.join(', '));
+check('the nav is Today, Library, Insights, Settings',
+  navLabels.join(',') === 'Today,Library,Insights,Settings', navLabels.join(', '));
 
 // Nothing that already worked may break.
-for (const tab of ['Workout', 'Library', 'Settings']) {
+for (const tab of ['Library', 'Insights', 'Settings']) {
   const before = pageErrors.length;
   await page.getByRole('button', { name: tab, exact: true }).click();
   await page.waitForTimeout(900);
   check(`${tab} tab still opens`, pageErrors.length === before, pageErrors.slice(before).join(' | '));
 }
 
+// Insights: every range renders, and history before tracking began is empty.
+await page.getByRole('button', { name: 'Insights', exact: true }).click();
+await page.waitForTimeout(800);
+check('Insights opens on the week', await page.getByText(/closed\.|has not started/).first().isVisible().catch(() => false));
+for (const range of ['month', 'year']) {
+  const before = pageErrors.length;
+  await page.getByRole('button', { name: range, exact: true }).click();
+  await page.waitForTimeout(700);
+  check(`Insights renders the ${range}`, pageErrors.length === before, pageErrors.slice(before).join(' | '));
+}
+
+// Workout is reachable without a tab.
+await page.getByRole('button', { name: 'Library', exact: true }).click();
+await page.waitForTimeout(700);
+await page.getByRole('button', { name: 'Start a Workout' }).click();
+await page.waitForTimeout(800);
+check('Library opens the workout flow',
+  await page.getByRole('button', { name: 'Today', exact: true }).isVisible().catch(() => false));
+
 await page.getByRole('button', { name: 'Today', exact: true }).click();
 await page.waitForTimeout(600);
-check('Today survives a round trip through the old tabs', await ring().isVisible().catch(() => false));
+check('Today survives a round trip through the other tabs', await ring().isVisible().catch(() => false));
 
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '));
 

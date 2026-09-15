@@ -28,15 +28,15 @@ const STEPS = [
     type: 'feature',
   },
   {
-    title: 'Start a Workout',
-    description: 'Choose from your saved workouts or build a custom routine with warmup, strength, conditioning, and cooldown blocks.',
-    highlight: 'workout',
+    title: 'Build Your Library',
+    description: 'Saved workouts, exercises and gear live here. Start a workout from this tab, or build a new routine with warmup, strength, conditioning and cooldown blocks.',
+    highlight: 'library',
     type: 'feature',
   },
   {
-    title: 'Build Your Library',
-    description: 'Save your favorite workouts and browse exercises. Customize routines to match your equipment and goals.',
-    highlight: 'library',
+    title: 'Look Back Later',
+    description: 'The week, the month and the year. Charts are a weekly question, not a daily one, so they live here instead of on Today.',
+    highlight: 'insights',
     type: 'feature',
   },
 ];
@@ -104,14 +104,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           {currentStep.type === 'welcome' && <MockWelcomeScreen />}
           {currentStep.type === 'personality' && <MockPersonalityScreen />}
           {currentStep.highlight === 'today' && <MockTodayScreen />}
-          {currentStep.highlight === 'workout' && <MockWorkoutScreen />}
+          {currentStep.highlight === 'insights' && <MockInsightsScreen />}
           {currentStep.highlight === 'library' && <MockLibraryScreen />}
         </div>
 
         {/* Which tab this step is about */}
         {currentStep.highlight && (
           <div data-testid="nav-preview" className="flex justify-around px-4 pb-2 pt-1 flex-shrink-0">
-            {['today', 'workout', 'library', 'settings'].map((item) => (
+            {['today', 'library', 'insights', 'settings'].map((item) => (
               <div
                 key={item}
                 className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
@@ -332,51 +332,54 @@ function MockTodayScreen() {
   ];
 
   return (
-    <div className="today-paper min-h-screen pt-14">
-      <header className="px-5 pb-3 flex items-baseline justify-between">
-        <span className="text-[26px] font-semibold tracking-tight" style={{ color: 'var(--today-ink)' }}>14</span>
-        <span className="today-caps">September</span>
+    <div className="mv-paper min-h-screen pt-14">
+      <header className="px-4 pb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
+          <img src="/moove.svg" alt="Moove" className="h-5 dark:invert" />
+        </div>
+        <span className="mv-caps">Mon 14 September</span>
       </header>
-      <div className="today-rule mx-5" />
+      <div className="mv-rule mx-4" />
 
       <div className="px-4 pt-5">
-        <div className="today-card flex items-center gap-5 p-5">
+        <div className="mv-card flex items-center gap-5 p-5">
           <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
             <svg width="88" height="88" viewBox="0 0 88 88" className="-rotate-90">
-              <circle cx="44" cy="44" r="40" fill="none" stroke="var(--today-track)" strokeWidth="8" />
-              <circle cx="44" cy="44" r="40" fill="none" stroke="var(--today-green)" strokeWidth="8"
+              <circle cx="44" cy="44" r="40" fill="none" stroke="var(--mv-track)" strokeWidth="8" />
+              <circle cx="44" cy="44" r="40" fill="none" stroke="var(--mv-green)" strokeWidth="8"
                 strokeLinecap="round" strokeDasharray={2 * Math.PI * 40}
                 strokeDashoffset={(2 * Math.PI * 40) * (2 / 3)} />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="today-serif leading-none text-[26px]" style={{ color: 'var(--today-ink)' }}>
-                1<span style={{ color: 'var(--today-faint)' }}>/3</span>
+              <span className="mv-serif leading-none text-[26px]" style={{ color: 'var(--mv-ink)' }}>
+                1<span style={{ color: 'var(--mv-faint)' }}>/3</span>
               </span>
             </div>
           </div>
           <div>
-            <div className="today-caps mb-1.5">Today</div>
-            <div className="text-[14px]" style={{ color: 'var(--today-muted)' }}>2 still open.</div>
+            <div className="mv-caps mb-1.5">Today</div>
+            <div className="text-[14px]" style={{ color: 'var(--mv-muted)' }}>2 still open.</div>
           </div>
         </div>
       </div>
 
       <div className="px-4 pt-4">
-        <div className="today-card p-5">
-          <div className="today-caps mb-2">Next</div>
-          <div className="today-serif text-[26px] leading-tight mb-1" style={{ color: 'var(--today-ink)' }}>Lift</div>
-          <div className="text-[13.5px]" style={{ color: 'var(--today-muted)' }}>3 left, 7 days</div>
+        <div className="mv-card p-5">
+          <div className="mv-caps mb-2">Next</div>
+          <div className="mv-serif text-[26px] leading-tight mb-1" style={{ color: 'var(--mv-ink)' }}>Lift</div>
+          <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>3 left, 7 days</div>
         </div>
       </div>
 
       <div className="px-4 pt-5 flex flex-col gap-2">
         {rows.map(row => (
-          <div key={row.name} className="today-card flex items-center gap-3 px-4 py-3.5">
+          <div key={row.name} className="mv-card flex items-center gap-3 px-4 py-3.5">
             <span className="flex items-center justify-center flex-shrink-0 rounded-full"
               style={{
                 width: 26, height: 26,
-                background: row.done ? 'var(--today-green)' : 'transparent',
-                border: row.done ? 'none' : '1.8px solid var(--today-track)',
+                background: row.done ? 'var(--mv-green)' : 'transparent',
+                border: row.done ? 'none' : '1.8px solid var(--mv-track)',
               }}>
               {row.done && (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff"
@@ -386,10 +389,10 @@ function MockTodayScreen() {
               )}
             </span>
             <span className="flex-grow text-[15px]"
-              style={{ color: 'var(--today-ink)', opacity: row.done ? 0.45 : 1 }}>
+              style={{ color: 'var(--mv-ink)', opacity: row.done ? 0.45 : 1 }}>
               {row.name}
             </span>
-            {row.detail && <span className="today-caps flex-shrink-0">{row.detail}</span>}
+            {row.detail && <span className="mv-caps flex-shrink-0">{row.detail}</span>}
           </div>
         ))}
       </div>
@@ -397,64 +400,44 @@ function MockTodayScreen() {
   );
 }
 
-// Mock workout screen for onboarding preview
-function MockWorkoutScreen() {
+// Mock Insights screen for onboarding preview
+function MockInsightsScreen() {
+  const bars = [
+    { name: 'Walk', pct: 100, count: '7/7' },
+    { name: 'Walk the dog', pct: 100, count: '7/7' },
+    { name: 'Dry day', pct: 80, count: '4/5' },
+    { name: 'Lift', pct: 100, count: '3/3' },
+    { name: 'Run', pct: 0, count: '0/1' },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 px-4 pt-16">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
-        <img src="/workout.svg" alt="Workout" className="h-5 dark:invert" />
-      </div>
-
-      {/* Create New Workout button */}
-      <div className="mb-6">
-        <button className="w-full p-5 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white text-left">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-xl font-semibold">Create New Workout</div>
-              <div className="text-emerald-100 text-sm">Pick exercises for each block</div>
-            </div>
-          </div>
-        </button>
-      </div>
-
-      {/* Timed Cardio */}
-      <div className="mb-6">
-        <div className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Timed Cardio</div>
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { emoji: '🚶', label: 'Walk' },
-            { emoji: '🏃', label: 'Run' },
-            { emoji: '🏔️', label: 'Trail' },
-            { emoji: '🥾', label: 'Hike' },
-          ].map((item, i) => (
-            <div key={i} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <span className="text-2xl">{item.emoji}</span>
-              <span className="text-xs text-slate-600 dark:text-slate-400">{item.label}</span>
-            </div>
-          ))}
+    <div className="mv-paper min-h-screen pt-14">
+      <header className="px-4 pb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
+          <span className="mv-caps" style={{ fontSize: 13, letterSpacing: '2px', color: 'var(--mv-ink)' }}>Insights</span>
         </div>
-      </div>
+        <div className="flex gap-4">
+          <span className="mv-caps" style={{ color: 'var(--mv-ink)', borderBottom: '2px solid var(--mv-ink)' }}>Week</span>
+          <span className="mv-caps">Month</span>
+          <span className="mv-caps">Year</span>
+        </div>
+      </header>
+      <div className="mv-rule mx-4" />
 
-      {/* Saved Workouts */}
-      <div>
-        <div className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Saved Workouts</div>
-        <div className="space-y-2">
-          {['Morning Strength', 'Full Body HIIT'].map((name, i) => (
-            <div key={i} className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-slate-900 dark:text-slate-100">{name}</div>
-                <div className="text-sm text-slate-500">3 blocks • 12 exercises</div>
-              </div>
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+      <div className="px-4 pt-6">
+        <div className="mv-card p-5">
+          <div className="mv-caps mb-2">14&ndash;20 September</div>
+          <div className="mv-serif text-[23px] leading-snug mb-4" style={{ color: 'var(--mv-ink)' }}>
+            5 of 7 closed. No run yet.
+          </div>
+          {bars.map(b => (
+            <div key={b.name} className="flex items-center gap-3 py-1.5">
+              <span className="w-[88px] flex-shrink-0 text-[13px]" style={{ color: 'var(--mv-ink)' }}>{b.name}</span>
+              <span className="flex-grow h-1.5 rounded-full" style={{ background: '#ece7dd' }}>
+                <span className="block h-1.5 rounded-full" style={{ width: `${b.pct}%`, background: '#047857' }} />
+              </span>
+              <span className="mv-caps w-8 text-right flex-shrink-0">{b.count}</span>
             </div>
           ))}
         </div>
@@ -540,6 +523,12 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
       return (
         <svg className={`w-6 h-6 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.5 6.5v11M4 9v6M17.5 6.5v11M20 9v6M6.5 12h11" />
+        </svg>
+      );
+    case 'insights':
+      return (
+        <svg className={`w-6 h-6 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 19V9M10 19V5M16 19v-7M22 19H3" />
         </svg>
       );
     case 'library':

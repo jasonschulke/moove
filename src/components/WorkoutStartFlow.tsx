@@ -4,6 +4,7 @@ import { CARDIO_TYPE_LABELS } from '../types';
 import { loadSavedWorkouts } from '../data/storage';
 import { getLastWorkout } from '../data/stats';
 import { getExerciseById } from '../data/exercises';
+import { ScreenHeader } from './ScreenHeader';
 
 // Material icons for cardio types with colors
 const CARDIO_CONFIG: Record<CardioType, { icon: string; color: string }> = {
@@ -68,12 +69,7 @@ export function WorkoutStartFlow({
   return (
     <div className="min-h-screen pb-24 bg-slate-100 dark:bg-slate-950">
       {/* Header */}
-      <header className="px-4 pt-16 pb-6 safe-top">
-        <div className="flex items-center gap-2">
-          <img src="/logo_icon.png" alt="Moove" className="h-9 dark:invert" />
-          <img src="/workout.svg" alt="Workout" className="h-5 dark:invert" />
-        </div>
-      </header>
+      <ScreenHeader wordmark="/workout.svg" alt="Workout" />
 
       <div className="px-4 space-y-8">
         {/* Create New Workout */}

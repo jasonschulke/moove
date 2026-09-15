@@ -22,6 +22,7 @@ import { NavBar } from './components/NavBar';
 import { WorkoutBuilder } from './components/WorkoutBuilder';
 import { WorkoutStartFlow } from './components/WorkoutStartFlow';
 import { TodayPage } from './pages/TodayPage';
+import { InsightsPage } from './pages/InsightsPage';
 import { WorkoutPage } from './pages/WorkoutPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -37,7 +38,7 @@ const isAuthCallback = () => {
 };
 
 /** Available pages in the app */
-type Page = 'today' | 'workout' | 'library' | 'settings';
+type Page = 'today' | 'workout' | 'library' | 'insights' | 'settings';
 
 /** Theme options */
 type Theme = 'dark' | 'light';
@@ -56,7 +57,9 @@ function AppContent() {
   });
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('workout_theme');
-    return (saved as Theme) || 'dark';
+    // Light is the design. Dark is still available in Settings, but a fresh
+    // install should land on the palette the app was designed in.
+    return (saved as Theme) || 'light';
   });
   const workout = useWorkout();
   const { isLandscape } = useLandscape();
@@ -125,6 +128,9 @@ function AppContent() {
       setHasNavigatedToWorkout(false);
     }
   }, [workout.session, hasNavigatedToWorkout]);
+
+  const hasActiveWorkout =
+    !!workout.session && ((workout.session.blocks?.length ?? 0) > 0 || !!workout.session.cardioType);
 
   const handleBuilderStart = (blocks: WorkoutBlock[]) => {
     workout.startWorkoutWithBlocks(blocks);
@@ -208,7 +214,15 @@ function AppContent() {
 
   return (
     <div className="min-h-screen transition-colors bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      {currentPage === 'today' && <TodayPage />}
+      {currentPage === 'today' && (
+        <TodayPage
+          activeWorkout={
+            hasActiveWorkout
+              ? { name: workout.session!.name, onResume: () => setCurrentPage('workout') }
+              : undefined
+          }
+        />
+      )}
 
       {currentPage === 'workout' && (
         workout.session && (workout.session.blocks?.length > 0 || workout.session.cardioType) ? (
@@ -242,8 +256,10 @@ function AppContent() {
         )
       )}
 
+      {currentPage === 'insights' && <InsightsPage />}
+
       {currentPage === 'library' && (
-        <LibraryPage onStartWorkout={handleBuilderStart} />
+        <LibraryPage onStartWorkout={handleBuilderStart} onOpenWorkoutFlow={() => setCurrentPage('workout')} />
       )}
 
 
@@ -252,19 +268,8 @@ function AppContent() {
       {/* Hide NavBar in landscape mode during active workout */}
       {!(isLandscape && currentPage === 'workout' && workout.session && ((workout.session.blocks?.length ?? 0) > 0 || !!workout.session.cardioType)) && (
         <NavBar
-          currentPage={currentPage}
+          currentPage={currentPage === 'workout' ? 'library' : currentPage}
           onNavigate={setCurrentPage}
-          hasActiveWorkout={!!workout.session && ((workout.session.blocks?.length ?? 0) > 0 || !!workout.session.cardioType)}
-          workoutProgress={
-            workout.session?.blocks?.length
-              ? (() => {
-                  // Calculate based on completed exercises vs total
-                  const totalExercises = workout.session!.blocks.reduce((sum, block) => sum + block.exercises.length, 0);
-                  const completedExercises = workout.session!.exercises.length;
-                  return Math.round((completedExercises / totalExercises) * 100);
-                })()
-              : undefined
-          }
         />
       )}
     </div>

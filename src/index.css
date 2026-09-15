@@ -22,30 +22,44 @@
 }
 
 @theme {
-  --color-slate-950: #020617;
-  --color-slate-900: #0f172a;
-  --color-slate-800: #1e293b;
-  --color-slate-700: #334155;
-  --color-slate-600: #475569;
-  --color-slate-500: #64748b;
-  --color-slate-400: #94a3b8;
-  --color-slate-300: #cbd5e1;
-  --color-slate-200: #e2e8f0;
-  --color-slate-100: #f1f5f9;
-  --color-slate-50: #f8fafc;
+  /* The slate ramp is remapped onto the warm palette. Every screen in the app
+     already speaks in slate-*, so redefining the ramp here carries the design
+     across all of them at once rather than editing several thousand lines of
+     class names. Ink at the dark end, paper at the light end. */
+  --color-slate-950: #0a0806;
+  --color-slate-900: #14110d;  /* ink */
+  --color-slate-800: #262119;
+  --color-slate-700: #4a453c;
+  --color-slate-600: #6b6558;
+  --color-slate-500: #8c8478;  /* muted */
+  --color-slate-400: #a89f90;  /* faint */
+  --color-slate-300: #ddd6c9;  /* hairline */
+  --color-slate-200: #ece7dd;  /* track */
+  --color-slate-100: #faf7f2;  /* paper */
+  --color-slate-50:  #ffffff;
 
-  --color-emerald-500: #10b981;
-  --color-emerald-600: #059669;
-  --color-emerald-700: #047857;
+  --color-emerald-500: #059669;
+  --color-emerald-600: #047857;  /* the green */
+  --color-emerald-700: #065f46;
 
-  --color-amber-500: #f59e0b;
-  --color-amber-600: #d97706;
+  --color-amber-500: #b45309;
+  --color-amber-600: #92400e;
 
-  --color-red-500: #ef4444;
-  --color-red-600: #dc2626;
+  --color-red-500: #b91c1c;
+  --color-red-600: #991b1b;
 
-  --color-blue-500: #3b82f6;
-  --color-blue-600: #2563eb;
+  /* Green is the only accent. Blue is remapped onto the neutral ramp so the
+     handful of informational chips using it stop competing with the ring. */
+  --color-blue-50:  #f4f1ea;
+  --color-blue-100: #ece7dd;
+  --color-blue-200: #ddd6c9;
+  --color-blue-300: #a89f90;
+  --color-blue-400: #8c8478;
+  --color-blue-500: #6b6558;
+  --color-blue-600: #4a453c;
+  --color-blue-700: #4a453c;
+  --color-blue-800: #262119;
+  --color-blue-900: #262119;
 }
 
 * {
@@ -140,11 +154,11 @@ body {
 @keyframes pulse-slow {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 10px 15px -3px rgb(16 185 129 / 0.3), 0 4px 6px -4px rgb(16 185 129 / 0.3);
+    box-shadow: 0 10px 15px -3px rgb(4 120 87 / 0.28), 0 4px 6px -4px rgb(4 120 87 / 0.28);
   }
   50% {
     opacity: 0.9;
-    box-shadow: 0 10px 15px -3px rgb(16 185 129 / 0.5), 0 4px 6px -4px rgb(16 185 129 / 0.5);
+    box-shadow: 0 10px 15px -3px rgb(4 120 87 / 0.45), 0 4px 6px -4px rgb(4 120 87 / 0.45);
   }
 }
 
@@ -207,56 +221,68 @@ body {
     -45deg,
     transparent,
     transparent 4px,
-    rgba(16, 185, 129, 0.15) 4px,
-    rgba(16, 185, 129, 0.15) 8px
+    rgba(4, 120, 87, 0.14) 4px,
+    rgba(4, 120, 87, 0.14) 8px
   );
 }
 
 /* ==========================================================================
-   Today
-   Scoped to the Today screen. The rest of the app keeps its slate palette.
+   The design system
+   Warm paper, ink structure, one green, Newsreader for the voice.
    ========================================================================== */
 
 :root {
-  --today-paper: #faf7f2;
-  --today-ink: #14110d;
-  --today-green: #047857;
-  --today-track: #ece7dd;
-  --today-muted: #8c8478;
-  --today-faint: #a89f90;
-  --today-hairline: #e5dfd4;
+  --mv-paper:    #faf7f2;
+  --mv-ink:      #14110d;
+  --mv-green:    #047857;
+  --mv-track:    #ece7dd;
+  --mv-muted:    #8c8478;
+  --mv-faint:    #a89f90;
+  --mv-hairline: #e5dfd4;
 }
 
-.today-paper { background: var(--today-paper); color: var(--today-ink); }
+.mv-paper { background: var(--mv-paper); color: var(--mv-ink); }
 
-.today-card {
+.mv-card {
   background: #ffffff;
   border-radius: 18px;
   box-shadow: 0 1px 2px rgba(20, 17, 13, 0.05), 0 10px 26px -14px rgba(20, 17, 13, 0.22);
 }
 
-/* The serif is the voice. Exactly two jobs on Today: the ring fraction and
-   the suggestion name. */
-.today-serif { font-family: 'Newsreader', Georgia, serif; }
+/* Every white rounded panel already in the app becomes a card. Two classes
+   beat Tailwind's single-class utilities on specificity, so the radius and
+   shadow win without editing each of the several dozen call sites. Screens
+   built later should use .mv-card directly. */
+.rounded-xl.bg-white,
+.rounded-2xl.bg-white,
+.rounded-lg.bg-white {
+  border-radius: 18px;
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(20, 17, 13, 0.05), 0 10px 26px -14px rgba(20, 17, 13, 0.22);
+}
 
-.today-caps {
+/* The serif is the voice, not the body. One or two jobs per screen. */
+.mv-serif { font-family: 'Newsreader', Georgia, serif; }
+
+.mv-caps {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--today-muted);
+  color: var(--mv-muted);
 }
 
-.today-rule { height: 2px; background: var(--today-ink); }
+/* Black is structure. */
+.mv-rule { height: 2px; background: var(--mv-ink); }
 
 /* Motion is a settle on load, not a permanent effect. */
-.today-rise { animation: today-rise-in 0.55s cubic-bezier(0.16, 0.8, 0.3, 1) both; }
+.mv-rise { animation: mv-rise-in 0.55s cubic-bezier(0.16, 0.8, 0.3, 1) both; }
 
-@keyframes today-rise-in {
+@keyframes mv-rise-in {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .today-rise { animation: none; }
+  .mv-rise { animation: none; }
 }
