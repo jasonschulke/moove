@@ -13,6 +13,7 @@ import { toggleHabit } from '../data/habits';
 import { toggleRestDay } from '../data/storage';
 import { say } from '../data/voice';
 import { CompletionRing } from '../components/CompletionRing';
+import { HabitIcon } from '../components/HabitIcon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -50,6 +51,12 @@ function HabitRow({ status, onToggle }: { status: HabitStatus; onToggle: () => v
         }}>
         {done && <CheckMark />}
       </span>
+
+      <HabitIcon
+        icon={habit.icon}
+        size={20}
+        style={{ color: 'var(--mv-muted)', opacity: done ? 0.45 : 1 }}
+      />
 
       <span className="flex-grow min-w-0 text-[15px]"
         style={{ color: 'var(--mv-ink)', opacity: done ? 0.45 : 1 }}>

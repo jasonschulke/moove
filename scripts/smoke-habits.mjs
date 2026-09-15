@@ -46,11 +46,25 @@ check('the dry day reads as held',
   await page.getByText('5 of 7 days, held unless you break it').isVisible().catch(() => false));
 check('a weekly habit reads as weekly', await page.getByText('3× a week').isVisible().catch(() => false));
 
+// Icons. The font is remote, so these assert the ligature reaches the DOM
+// rather than how it looks; the glyph itself needs a human eye.
+const iconNames = () =>
+  page.locator('.mv-card .material-symbols-outlined').evaluateAll(
+    els => els.map(el => el.dataset.icon ?? ''));
+const seededIcons = await iconNames();
+check('every seeded habit shows an icon', seededIcons.length >= 5, seededIcons.join(','));
+check('the icons are the seeded ones',
+  ['directions_walk', 'pets', 'no_drinks', 'fitness_center', 'directions_run']
+    .every(i => seededIcons.includes(i)),
+  seededIcons.join(','));
+
 // Adding a daily habit must widen the ring: that is the whole point of scoring
 // a day as one number rather than baking three habits into the shape.
 await page.getByRole('button', { name: 'Add a Habit' }).click();
 await page.waitForTimeout(400);
 await page.getByLabel('Habit name').fill('Stretch');
+await page.getByRole('button', { name: 'self improvement' }).click();
+await page.waitForTimeout(200);
 await page.getByRole('button', { name: 'Add habit' }).click();
 await page.waitForTimeout(500);
 check('the new habit appears', (await names()).includes('Stretch'), (await names()).join(','));
@@ -60,6 +74,9 @@ const widened = await ring().getAttribute('aria-label');
 check('the ring widens to 4', widened === '1 of 4 done today', widened ?? '(missing)');
 check('the new habit is loggable on Today',
   await page.getByRole('button', { name: 'Stretch', exact: true }).isVisible().catch(() => false));
+const todayIcons = await iconNames();
+check('the chosen icon follows it to Today',
+  todayIcons.includes('self_improvement'), todayIcons.join(','));
 
 // Index-based targeting is a trap once rows move, so everything below
 // addresses habits by name.
@@ -93,6 +110,17 @@ check('delete removes it', !(await names()).includes('Stretching'), (await names
 await openToday();
 const narrowed = await ring().getAttribute('aria-label');
 check('the ring narrows back to 3', narrowed === '1 of 3 done today', narrowed ?? '(missing)');
+
+// An icon font renders its ligature as plain words until the glyph arrives.
+// On a phone with no signal that is what the row says, so the glyph is held
+// back until the font reports itself loaded.
+const leaking = await page.locator('.material-symbols-outlined').evaluateAll(
+  els => els
+    .filter(el => getComputedStyle(el).visibility !== 'hidden')
+    .filter(el => el.getBoundingClientRect().width > el.getBoundingClientRect().height * 2)
+    .map(el => el.textContent.trim()));
+check('no icon leaks its name as words when the font is unavailable',
+  leaking.length === 0, leaking.join(', '));
 
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '));
 

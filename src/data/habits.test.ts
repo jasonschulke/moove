@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  DEFAULT_HABITS, loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence,
+  DEFAULT_HABITS, HABIT_ICONS, HABIT_ICON_GROUPS,
+  loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence,
   dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, setHabitDone, toggleHabit, countDoneInWeek,
 } from './habits';
@@ -214,5 +215,56 @@ describe('describeCadence', () => {
   it('says so when a habit is held', () => {
     expect(describeCadence({ kind: 'daily-quota', perWeek: 5 }, true))
       .toBe('5 of 7 days, held unless you break it');
+  });
+});
+
+describe('icons', () => {
+  it('gives every seeded habit one', () => {
+    expect(loadHabits().every(h => !!h.icon)).toBe(true);
+  });
+
+  it('only seeds icons the picker offers', () => {
+    for (const habit of DEFAULT_HABITS) {
+      expect(HABIT_ICONS, habit.name).toContain(habit.icon!);
+    }
+  });
+
+  it('offers no duplicates', () => {
+    expect(new Set(HABIT_ICONS).size).toBe(HABIT_ICONS.length);
+  });
+
+  it('names icons as Material Symbols ligatures', () => {
+    // Anything else renders as raw text where the font expects a ligature.
+    for (const icon of HABIT_ICONS) {
+      expect(icon, icon).toMatch(/^[a-z0-9_]+$/);
+    }
+  });
+
+  it('keeps every group the same width so the grid stays square', () => {
+    for (const group of HABIT_ICON_GROUPS) {
+      expect(group.icons.length, group.label).toBe(9);
+    }
+  });
+
+  it('stores an icon on a new habit', () => {
+    const added = addHabit({
+      name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false, icon: 'self_improvement',
+    });
+    expect(loadHabits().find(h => h.id === added.id)!.icon).toBe('self_improvement');
+  });
+
+  it('changes one on edit', () => {
+    updateHabit('walk', { icon: 'hiking' });
+    expect(loadHabits().find(h => h.id === 'walk')!.icon).toBe('hiking');
+  });
+
+  it('clears one back to none', () => {
+    updateHabit('walk', { icon: undefined });
+    expect(loadHabits().find(h => h.id === 'walk')!.icon).toBeUndefined();
+  });
+
+  it('tolerates a habit stored before icons existed', () => {
+    saveHabits([{ id: 'old', name: 'Old', cadence: { kind: 'daily' }, heldByDefault: false, order: 0 }]);
+    expect(loadHabits()[0].icon).toBeUndefined();
   });
 });

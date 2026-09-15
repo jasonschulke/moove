@@ -11,6 +11,8 @@
 import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
 import { loadHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence } from '../data/habits';
+import { IconPicker } from './IconPicker';
+import { HabitIcon } from './HabitIcon';
 
 type CadenceKind = HabitCadence['kind'];
 
@@ -32,10 +34,11 @@ interface DraftState {
   kind: CadenceKind;
   perWeek: number;
   heldByDefault: boolean;
+  icon: string | undefined;
 }
 
 const blankDraft = (): DraftState =>
-  ({ id: null, name: '', kind: 'daily', perWeek: 3, heldByDefault: false });
+  ({ id: null, name: '', kind: 'daily', perWeek: 3, heldByDefault: false, icon: undefined });
 
 const draftFrom = (habit: Habit): DraftState => ({
   id: habit.id,
@@ -43,6 +46,7 @@ const draftFrom = (habit: Habit): DraftState => ({
   kind: habit.cadence.kind,
   perWeek: habit.cadence.kind === 'daily' ? 3 : habit.cadence.perWeek,
   heldByDefault: habit.heldByDefault,
+  icon: habit.icon,
 });
 
 function HabitEditor({ draft, onChange, onSave, onCancel }: {
@@ -57,15 +61,19 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
     <div className="mv-card p-4 mb-3">
       <div className="mv-caps mb-3">{draft.id ? 'Edit habit' : 'New habit'}</div>
 
-      <input
-        type="text"
-        value={draft.name}
-        onChange={e => onChange({ ...draft, name: e.target.value })}
-        placeholder="What are you tracking?"
-        aria-label="Habit name"
-        className="w-full px-3 py-2.5 mb-3 rounded-[10px] text-[15px] bg-transparent"
-        style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
-      />
+      <div className="flex items-center gap-2 mb-3 px-3 py-2.5 rounded-[10px]"
+        style={{ border: '1.5px solid var(--mv-track)' }}>
+        <HabitIcon icon={draft.icon} size={20} style={{ color: 'var(--mv-muted)' }} />
+        <input
+          type="text"
+          value={draft.name}
+          onChange={e => onChange({ ...draft, name: e.target.value })}
+          placeholder="What are you tracking?"
+          aria-label="Habit name"
+          className="flex-grow min-w-0 text-[15px] bg-transparent outline-none"
+          style={{ color: 'var(--mv-ink)' }}
+        />
+      </div>
 
       <div className="mv-caps mb-2">How often</div>
       <div className="flex flex-col gap-1.5 mb-3">
@@ -128,6 +136,10 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
         </span>
       </button>
 
+      <div className="mb-4">
+        <IconPicker value={draft.icon} onChange={icon => onChange({ ...draft, icon })} />
+      </div>
+
       <div className="flex gap-2">
         <button
           onClick={onCancel}
@@ -171,7 +183,12 @@ export function HabitManager() {
     const cadence: HabitCadence = draft.kind === 'daily'
       ? { kind: 'daily' }
       : { kind: draft.kind, perWeek: draft.perWeek };
-    const fields = { name: draft.name.trim(), cadence, heldByDefault: draft.heldByDefault };
+    const fields = {
+      name: draft.name.trim(),
+      cadence,
+      heldByDefault: draft.heldByDefault,
+      icon: draft.icon,
+    };
 
     if (draft.id) updateHabit(draft.id, fields);
     else addHabit(fields);
@@ -212,6 +229,7 @@ export function HabitManager() {
         {habits.map((habit, i) => (
           <div key={habit.id} className="mv-card p-4">
             <div className="flex items-start gap-3">
+              <HabitIcon icon={habit.icon} size={22} style={{ color: 'var(--mv-muted)', marginTop: 1 }} />
               <div className="flex-grow min-w-0">
                 <div className="text-[15px]" style={{ color: 'var(--mv-ink)' }}>{habit.name}</div>
                 <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>

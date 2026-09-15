@@ -18,12 +18,43 @@ const HABITS_SEEDED_KEY = 'habit_definitions_seeded';
 
 /** What a new install starts with. Editable from Library once it is seeded. */
 export const DEFAULT_HABITS: Habit[] = [
-  { id: 'walk', name: 'Walk',         cadence: { kind: 'daily' },                   heldByDefault: false, order: 0 },
-  { id: 'dog',  name: 'Walk the dog', cadence: { kind: 'daily' },                   heldByDefault: false, order: 1 },
-  { id: 'dry',  name: 'Dry day',      cadence: { kind: 'daily-quota', perWeek: 5 }, heldByDefault: true,  order: 2 },
-  { id: 'lift', name: 'Lift',         cadence: { kind: 'weekly', perWeek: 3 },      heldByDefault: false, order: 3 },
-  { id: 'run',  name: 'Run',          cadence: { kind: 'weekly', perWeek: 1 },      heldByDefault: false, order: 4 },
+  { id: 'walk', name: 'Walk',         cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'directions_walk', order: 0 },
+  { id: 'dog',  name: 'Walk the dog', cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'pets',            order: 1 },
+  { id: 'dry',  name: 'Dry day',      cadence: { kind: 'daily-quota', perWeek: 5 }, heldByDefault: true,  icon: 'no_drinks',       order: 2 },
+  { id: 'lift', name: 'Lift',         cadence: { kind: 'weekly', perWeek: 3 },      heldByDefault: false, icon: 'fitness_center',  order: 3 },
+  { id: 'run',  name: 'Run',          cadence: { kind: 'weekly', perWeek: 1 },      heldByDefault: false, icon: 'directions_run',  order: 4 },
 ];
+
+/**
+ * The icons offered in the picker, grouped so the grid reads as sections
+ * rather than a wall. Material Symbols ligature names; the font is already
+ * loaded for the rest of the app.
+ */
+export const HABIT_ICON_GROUPS: { label: string; icons: string[] }[] = [
+  {
+    label: 'Moving',
+    icons: ['directions_walk', 'directions_run', 'hiking', 'directions_bike',
+            'pool', 'rowing', 'fitness_center', 'sports_martial_arts', 'self_improvement'],
+  },
+  {
+    label: 'Body',
+    icons: ['favorite', 'monitor_heart', 'monitor_weight', 'bedtime',
+            'water_drop', 'restaurant', 'medication', 'spa', 'no_drinks'],
+  },
+  {
+    label: 'Life',
+    icons: ['pets', 'menu_book', 'edit_note', 'piano', 'brush',
+            'park', 'cleaning_services', 'savings', 'smoke_free'],
+  },
+  {
+    label: 'Marks',
+    icons: ['check_circle', 'star', 'bolt', 'flag', 'schedule',
+            'sunny', 'local_cafe', 'forest', 'phone_iphone'],
+  },
+];
+
+/** Every icon the picker offers, flattened. */
+export const HABIT_ICONS: string[] = HABIT_ICON_GROUPS.flatMap(g => g.icons);
 
 /**
  * The tracked habits, in display order.
@@ -57,7 +88,7 @@ export function saveHabits(habits: Habit[]): void {
   localStorage.setItem(HABITS_SEEDED_KEY, 'true');
 }
 
-export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean }): Habit {
+export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean; icon?: string }): Habit {
   const habits = loadHabits();
   const habit: Habit = { id: generateUUID(), order: habits.length, ...input };
   saveHabits([...habits, habit]);

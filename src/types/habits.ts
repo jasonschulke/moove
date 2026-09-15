@@ -24,6 +24,12 @@ export interface Habit {
    * rather than a special case, so a second inverted habit needs no new code.
    */
   heldByDefault: boolean;
+  /**
+   * A Material Symbols ligature name, e.g. "directions_walk". The font is
+   * already loaded for the rest of the app, so this costs no bundle.
+   * Optional: habits made before icons existed simply show none.
+   */
+  icon?: string;
   order: number;
 }
 
