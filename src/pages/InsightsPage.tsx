@@ -27,6 +27,14 @@ import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year' | 'all';
 
+/** What the coach offers to talk about, which depends on what you are looking at. */
+const ASK_PROMPT: Record<Range, string> = {
+  week: 'Ask about your week',
+  month: 'Ask about your month',
+  year: 'Ask about your year',
+  all: 'Ask about your training',
+};
+
 // Read from the stylesheet so the screen follows the theme. Hardcoding these
 // is what left Today and Insights stranded in light while the rest went dark.
 const GREEN = 'var(--mv-green)';
@@ -410,10 +418,7 @@ const ALL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
  * this one answers "what have I done", which is the same question the workout
  * history answers, so they share a tab.
  */
-function AllPanel({ now, onStartWorkout }: {
-  now: Date;
-  onStartWorkout?: (blocks: WorkoutBlock[]) => void;
-}) {
+function AllPanel({ now }: { now: Date }) {
   const all = useMemo(() => getAllTime(now), [now]);
   const workouts = useMemo(() => loadSessions().filter(s => s.completedAt).length, []);
 
@@ -445,10 +450,6 @@ function AllPanel({ now, onStartWorkout }: {
         )}
       </div>
 
-      <div className="mv-caps mx-1 mt-6 mb-2">Workouts</div>
-      <div className="-mx-4">
-        <WorkoutHistory onStartWorkout={onStartWorkout} />
-      </div>
     </>
   );
 }
@@ -498,7 +499,7 @@ export function InsightsPage({ onStartWorkout }: {
   }
 
   return (
-    <div className="mv-paper min-h-screen pb-40">
+    <div className="mv-paper min-h-screen pb-24">
       <div className="max-w-lg mx-auto">
         <ScreenHeader wordmark="/insights.svg" alt="Insights" />
 
@@ -525,28 +526,21 @@ export function InsightsPage({ onStartWorkout }: {
           {range === 'week' && <WeekPanel now={now} />}
           {range === 'month' && <MonthPanel now={now} />}
           {range === 'year' && <YearPanel now={now} />}
-          {range === 'all' && <AllPanel now={now} onStartWorkout={onStartWorkout} />}
+          {range === 'all' && <AllPanel now={now} />}
         </section>
 
-        <section className="px-4 pt-6 mv-rise">
-          <MeasuredPanels />
-        </section>
-      </div>
-
-      {/* The coach as a layer over the data, not a separate room. */}
-      <div
-        className="fixed left-0 right-0 bottom-16 px-4 pt-3 pb-3 safe-bottom"
-        style={{ background: 'var(--mv-scrim)', borderTop: '1px solid var(--mv-hairline)' }}
-      >
-        <div className="max-w-lg mx-auto">
+        {/* The coach sits with the thing it is being asked about, directly
+            under the range it answers for. As a bar pinned above the nav it
+            was a permanent fixture of the screen rather than part of it, and
+            it left a band of empty paper between the last card and itself. */}
+        <section className="px-4 pt-4 mv-rise">
           <button
             onClick={() => coachReady && setChatOpen(true)}
             disabled={!coachReady}
-            className="w-full flex items-center gap-2 h-12 pl-4 pr-1.5 rounded-[13px] disabled:opacity-60"
-            style={{ background: 'var(--mv-card)', border: '1px solid var(--mv-hairline)' }}
+            className="mv-card w-full flex items-center gap-2 p-2 pl-4 disabled:opacity-60"
           >
             <span className="flex-grow text-left text-[14px]" style={{ color: 'var(--mv-faint)' }}>
-              {coachReady ? 'Ask about your week' : 'Add a Claude key in Settings'}
+              {coachReady ? ASK_PROMPT[range] : 'Add a Claude key in Settings'}
             </span>
             <span
               className="flex items-center justify-center w-9 h-9 rounded-[10px] flex-shrink-0"
@@ -558,7 +552,20 @@ export function InsightsPage({ onStartWorkout }: {
               </svg>
             </span>
           </button>
-        </div>
+        </section>
+
+        <section className="px-4 pt-6 mv-rise">
+          <MeasuredPanels />
+        </section>
+
+        {range === 'all' && (
+          <section className="px-4 pt-6 mv-rise">
+            <div className="mv-caps mx-1 mb-2">Workouts</div>
+            <div className="-mx-4">
+              <WorkoutHistory onStartWorkout={onStartWorkout} />
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
