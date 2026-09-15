@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { HABITS, dailyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
+import { loadHabits, dailyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
 import { startOfWeek, endOfWeek } from '../utils/week';
 import { formatLocalDate, isRestDay, loadRestDays } from './storage';
 
@@ -108,7 +108,7 @@ export function getWeekReview(now: Date = new Date(), logs?: HabitLogMap): WeekR
   const log = logs ?? loadHabitLogs();
   const todayStr = formatLocalDate(now);
 
-  const bars: HabitBar[] = HABITS.map(habit => ({
+  const bars: HabitBar[] = loadHabits().map(habit => ({
     habit,
     done: Math.min(countDoneInWeek(habit, now, log), weekTarget(habit)),
     target: weekTarget(habit),

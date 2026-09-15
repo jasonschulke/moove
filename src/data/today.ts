@@ -7,7 +7,7 @@
  */
 
 import type { Habit, HabitLogMap } from '../types/habits';
-import { HABITS, dailyHabits, weeklyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
+import { loadHabits, dailyHabits, weeklyHabits, isHabitDone, countDoneInWeek, loadHabitLogs } from './habits';
 import { daysLeftInWeek } from '../utils/week';
 import { formatLocalDate, isRestDay } from './storage';
 
@@ -59,7 +59,7 @@ export function getTodayView(now: Date = new Date(), logs?: HabitLogMap): TodayV
   const dateStr = formatLocalDate(now);
   const daysLeft = daysLeftInWeek(now);
 
-  const statuses: HabitStatus[] = HABITS.map(habit => {
+  const statuses: HabitStatus[] = loadHabits().map(habit => {
     const doneThisWeek = countDoneInWeek(habit, now, log);
     const perWeek = weeklyTarget(habit);
     return {

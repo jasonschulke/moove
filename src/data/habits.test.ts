@@ -1,21 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  HABITS, dailyHabits, weeklyHabits, loadHabitLogs,
+  DEFAULT_HABITS, loadHabits, saveHabits, addHabit, updateHabit, deleteHabit, moveHabit,
+  dailyHabits, weeklyHabits, loadHabitLogs,
   isHabitDone, setHabitDone, toggleHabit, countDoneInWeek,
 } from './habits';
 import type { Habit } from '../types/habits';
 
 const byId = (id: string): Habit => {
-  const h = HABITS.find(x => x.id === id);
+  const h = loadHabits().find(x => x.id === id);
   if (!h) throw new Error(`no habit ${id}`);
   return h;
 };
 
 beforeEach(() => { localStorage.clear(); });
 
-describe('HABITS', () => {
-  it('holds the five tracked things with the right cadences', () => {
-    expect(HABITS.map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+describe('the seeded defaults', () => {
+  it('hold the five tracked things with the right cadences', () => {
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
     expect(byId('walk').cadence).toEqual({ kind: 'daily' });
     expect(byId('dog').cadence).toEqual({ kind: 'daily' });
     expect(byId('dry').cadence).toEqual({ kind: 'daily-quota', perWeek: 5 });
@@ -23,8 +24,8 @@ describe('HABITS', () => {
     expect(byId('run').cadence).toEqual({ kind: 'weekly', perWeek: 1 });
   });
 
-  it('holds the dry day by default and nothing else', () => {
-    expect(HABITS.filter(h => h.heldByDefault).map(h => h.id)).toEqual(['dry']);
+  it('hold the dry day by default and nothing else', () => {
+    expect(loadHabits().filter(h => h.heldByDefault).map(h => h.id)).toEqual(['dry']);
   });
 });
 
@@ -128,5 +129,77 @@ describe('countDoneInWeek', () => {
 
   it('is zero for an ordinary habit with no logs', () => {
     expect(countDoneInWeek(byId('lift'), tuesday, {})).toBe(0);
+  });
+});
+
+describe('managing the list', () => {
+  it('seeds the defaults on a clean install', () => {
+    expect(loadHabits().map(h => h.id)).toEqual(DEFAULT_HABITS.map(h => h.id));
+  });
+
+  it('does not bring the defaults back after they are all deleted', () => {
+    loadHabits();                       // seed
+    saveHabits([]);                     // then clear
+    expect(loadHabits()).toEqual([]);
+  });
+
+  it('adds a habit at the end', () => {
+    const added = addHabit({ name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false });
+    const habits = loadHabits();
+    expect(habits[habits.length - 1].id).toBe(added.id);
+    expect(habits[habits.length - 1].name).toBe('Stretch');
+  });
+
+  it('gives a new habit its own id', () => {
+    const a = addHabit({ name: 'A', cadence: { kind: 'daily' }, heldByDefault: false });
+    const b = addHabit({ name: 'B', cadence: { kind: 'daily' }, heldByDefault: false });
+    expect(a.id).not.toBe(b.id);
+  });
+
+  it('updates a habit in place without moving it', () => {
+    updateHabit('dog', { name: 'Dog walk', cadence: { kind: 'weekly', perWeek: 4 } });
+    const habits = loadHabits();
+    expect(habits[1].name).toBe('Dog walk');
+    expect(habits[1].cadence).toEqual({ kind: 'weekly', perWeek: 4 });
+    expect(habits.map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+  });
+
+  it('returns null when updating a habit that is gone', () => {
+    expect(updateHabit('nope', { name: 'x' })).toBeNull();
+  });
+
+  it('deletes a habit and closes the gap in the order', () => {
+    deleteHabit('dry');
+    const habits = loadHabits();
+    expect(habits.map(h => h.id)).toEqual(['walk', 'dog', 'lift', 'run']);
+    expect(habits.map(h => h.order)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('moves a habit down', () => {
+    moveHabit('walk', 1);
+    expect(loadHabits().map(h => h.id)).toEqual(['dog', 'walk', 'dry', 'lift', 'run']);
+  });
+
+  it('moves a habit up', () => {
+    moveHabit('dry', -1);
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dry', 'dog', 'lift', 'run']);
+  });
+
+  it('does nothing at either end', () => {
+    moveHabit('walk', -1);
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+    moveHabit('run', 1);
+    expect(loadHabits().map(h => h.id)).toEqual(['walk', 'dog', 'dry', 'lift', 'run']);
+  });
+
+  it('widens the ring when a daily habit is added', () => {
+    expect(dailyHabits().length).toBe(3);
+    addHabit({ name: 'Stretch', cadence: { kind: 'daily' }, heldByDefault: false });
+    expect(dailyHabits().length).toBe(4);
+  });
+
+  it('survives corrupt stored data by falling back to the defaults', () => {
+    localStorage.setItem('habit_definitions', '{not an array');
+    expect(loadHabits().map(h => h.id)).toEqual(DEFAULT_HABITS.map(h => h.id));
   });
 });

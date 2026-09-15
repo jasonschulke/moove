@@ -5,12 +5,12 @@ import {
 } from './insights';
 import type { HabitBar } from './insights';
 import type { HabitLogMap } from '../types/habits';
-import { HABITS } from './habits';
+import { loadHabits } from './habits';
 
 // Wednesday 16 September 2026. Week is Mon 14 to Sun 20.
 const wednesday = () => new Date(2026, 8, 16, 12, 0, 0);
 const bar = (id: string, done: number, target: number): HabitBar =>
-  ({ habit: HABITS.find(h => h.id === id)!, done, target });
+  ({ habit: loadHabits().find(h => h.id === id)!, done, target });
 
 beforeEach(() => { localStorage.clear(); });
 

@@ -7,13 +7,17 @@
  * localStorage only in this slice. No Supabase table, so nothing to migrate.
  */
 
-import type { Habit, HabitLogMap } from '../types/habits';
+import type { Habit, HabitCadence, HabitLogMap } from '../types/habits';
 import { startOfWeek, endOfWeek } from '../utils/week';
 import { formatLocalDate } from './storage';
+import { generateUUID } from '../utils/uuid';
 
 const HABIT_LOGS_KEY = 'habit_logs';
+const HABIT_DEFS_KEY = 'habit_definitions';
+const HABITS_SEEDED_KEY = 'habit_definitions_seeded';
 
-export const HABITS: Habit[] = [
+/** What a new install starts with. Editable from Library once it is seeded. */
+export const DEFAULT_HABITS: Habit[] = [
   { id: 'walk', name: 'Walk',         cadence: { kind: 'daily' },                   heldByDefault: false, order: 0 },
   { id: 'dog',  name: 'Walk the dog', cadence: { kind: 'daily' },                   heldByDefault: false, order: 1 },
   { id: 'dry',  name: 'Dry day',      cadence: { kind: 'daily-quota', perWeek: 5 }, heldByDefault: true,  order: 2 },
@@ -21,14 +25,83 @@ export const HABITS: Habit[] = [
   { id: 'run',  name: 'Run',          cadence: { kind: 'weekly', perWeek: 1 },      heldByDefault: false, order: 4 },
 ];
 
-/** The habits that make up a day's completion score. Always three. */
+/**
+ * The tracked habits, in display order.
+ *
+ * Seeded once with the five defaults, then owned by the user. The seeded flag
+ * means deleting them all does not bring them back on the next load.
+ */
+export function loadHabits(): Habit[] {
+  try {
+    const raw = localStorage.getItem(HABIT_DEFS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return (parsed as Habit[]).slice().sort((a, b) => a.order - b.order);
+      }
+    }
+  } catch {
+    // Fall through to the defaults rather than leaving the app with none.
+  }
+
+  if (localStorage.getItem(HABITS_SEEDED_KEY)) return [];
+  localStorage.setItem(HABITS_SEEDED_KEY, 'true');
+  saveHabits(DEFAULT_HABITS);
+  return DEFAULT_HABITS.slice();
+}
+
+/** Writes the list, renumbering order so it always matches position. */
+export function saveHabits(habits: Habit[]): void {
+  const ordered = habits.map((h, i) => ({ ...h, order: i }));
+  localStorage.setItem(HABIT_DEFS_KEY, JSON.stringify(ordered));
+  localStorage.setItem(HABITS_SEEDED_KEY, 'true');
+}
+
+export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean }): Habit {
+  const habits = loadHabits();
+  const habit: Habit = { id: generateUUID(), order: habits.length, ...input };
+  saveHabits([...habits, habit]);
+  return habit;
+}
+
+export function updateHabit(id: string, patch: Partial<Omit<Habit, 'id'>>): Habit | null {
+  const habits = loadHabits();
+  const index = habits.findIndex(h => h.id === id);
+  if (index === -1) return null;
+  const updated = { ...habits[index], ...patch, id };
+  habits[index] = updated;
+  saveHabits(habits);
+  return updated;
+}
+
+/** Removes a habit. Its logs are left alone; nothing reads them once it is gone. */
+export function deleteHabit(id: string): void {
+  saveHabits(loadHabits().filter(h => h.id !== id));
+}
+
+/** Moves a habit one place up or down. A no-op at either end. */
+export function moveHabit(id: string, direction: -1 | 1): Habit[] {
+  const habits = loadHabits();
+  const from = habits.findIndex(h => h.id === id);
+  const to = from + direction;
+  if (from === -1 || to < 0 || to >= habits.length) return habits;
+  [habits[from], habits[to]] = [habits[to], habits[from]];
+  saveHabits(habits);
+  return loadHabits();
+}
+
+/**
+ * The habits that make up a day's completion score, and so the ring's
+ * denominator. Adding a daily habit widens it; that is the point of scoring a
+ * day as one number rather than encoding each habit in the shape.
+ */
 export function dailyHabits(): Habit[] {
-  return HABITS.filter(h => h.cadence.kind !== 'weekly');
+  return loadHabits().filter(h => h.cadence.kind !== 'weekly');
 }
 
 /** The habits owed a number of times per week, on no particular day. */
 export function weeklyHabits(): Habit[] {
-  return HABITS.filter(h => h.cadence.kind === 'weekly');
+  return loadHabits().filter(h => h.cadence.kind === 'weekly');
 }
 
 export function loadHabitLogs(): HabitLogMap {
