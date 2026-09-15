@@ -7,14 +7,15 @@
  * looking at rather than a separate room.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ClaudeChat } from '../components/ClaudeChat';
 import { getWeekReview, getMonthCompletion, getYearCompletion, monthLabel } from '../data/insights';
 import type { DayCompletion } from '../data/insights';
-import { loadBodyMetrics } from '../data/storage';
+import { loadBodyMetrics, recordWeight, formatLocalDate } from '../data/storage';
 import { say } from '../data/voice';
 import { HabitIcon } from '../components/HabitIcon';
+import { habitColor } from '../data/habits';
 import { isClaudeAvailable } from '../lib/claudeClient';
 
 type Range = 'week' | 'month' | 'year';
@@ -71,7 +72,7 @@ function WeekPanel({ now }: { now: Date }) {
 
       {review.bars.map(b => (
         <div key={b.habit.id} className="flex items-center gap-2 py-1.5">
-          <HabitIcon icon={b.habit.icon} size={17} style={{ color: 'var(--mv-faint)' }} />
+          <HabitIcon icon={b.habit.icon} size={17} style={{ color: habitColor(b.habit) }} />
           <span className="w-[80px] flex-shrink-0 text-[13px] truncate" style={{ color: 'var(--mv-ink)' }}>
             {b.habit.name}
           </span>
@@ -80,7 +81,7 @@ function WeekPanel({ now }: { now: Date }) {
               className="block h-1.5 rounded-full"
               style={{
                 width: `${Math.round((b.done / b.target) * 100)}%`,
-                background: GREEN,
+                background: habitColor(b.habit),
                 transition: 'width 0.5s cubic-bezier(0.16, 0.8, 0.3, 1)',
               }}
             />
@@ -120,46 +121,114 @@ function MonthPanel({ now }: { now: Date }) {
   );
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Cell and gap in px. Columns are weeks, so the pitch is cell + gap. */
+const YEAR_CELL = 13;
+const YEAR_GAP = 3;
+const YEAR_PITCH = YEAR_CELL + YEAR_GAP;
+
 function YearPanel({ now }: { now: Date }) {
   const days = useMemo(() => getYearCompletion(now), [now]);
 
   // Columns are weeks, Monday at the top, so the grid reads like a calendar.
-  const columns: DayCompletion[][] = [];
-  let column: DayCompletion[] = [];
+  const columns: (DayCompletion | null)[][] = [];
+  let column: (DayCompletion | null)[] = [];
   const lead = (new Date(now.getFullYear(), 0, 1).getDay() + 6) % 7;
-  for (let i = 0; i < lead; i++) column.push(null as unknown as DayCompletion);
+  for (let i = 0; i < lead; i++) column.push(null);
   for (const day of days) {
     column.push(day);
     if (column.length === 7) { columns.push(column); column = []; }
   }
-  if (column.length) columns.push(column);
+  if (column.length) {
+    while (column.length < 7) column.push(null);
+    columns.push(column);
+  }
+
+  // A month's label sits over the first column that contains its first week.
+  const monthStarts = new Map<number, number>();
+  columns.forEach((col, i) => {
+    for (const day of col) {
+      if (!day) continue;
+      const month = new Date(day.dateStr + 'T00:00:00').getMonth();
+      if (!monthStarts.has(month)) monthStarts.set(month, i);
+      break;
+    }
+  });
 
   const shade = (d: DayCompletion | null) => {
     if (!d || d.isFuture || d.isUntracked) return 'var(--mv-empty)';
-    if (d.completion === 0) return TRACK;
-    if (d.isRest) return VIOLET;
+    if (d.completion === 0) return 'var(--mv-track)';
+    if (d.isRest) return 'var(--mv-violet)';
     // Three steps, matching the three daily habits.
     if (d.completion >= 1) return GREEN;
     if (d.completion >= 0.66) return 'var(--mv-green-2)';
     return 'var(--mv-green-1)';
   };
 
+  const swatch = (background: string, key: string) => (
+    <span key={key} className="inline-block rounded-[3px]"
+      style={{ width: 11, height: 11, background }} />
+  );
+
   return (
     <>
       <div className="mv-caps mx-1 mb-2">{now.getFullYear()}</div>
       <div className="mv-card p-4">
-        <div className="flex gap-[1px] justify-center">
-          {columns.map((col, ci) => (
-            <div key={ci} className="flex flex-col gap-[1px]">
-              {col.map((d, di) => (
-                <div
-                  key={di}
-                                    style={{ width: 5, height: 5, borderRadius: 1, background: shade(d) }}
-                  title={d ? `${d.dateStr}: ${Math.round(d.completion * 100)}%` : ''}
-                />
+        {/* Fifty-three columns of readable squares are wider than a phone, so
+            the grid scrolls sideways. Squashing them to fit is what made this
+            a barcode. */}
+        <div className="overflow-x-auto -mx-1 px-1">
+          <div style={{ width: columns.length * YEAR_PITCH }}>
+            <div className="relative h-4 mb-1">
+              {[...monthStarts.entries()].map(([month, col]) => (
+                <span
+                  key={month}
+                  className="absolute top-0 text-[10px] whitespace-nowrap"
+                  style={{ left: col * YEAR_PITCH, color: 'var(--mv-faint)' }}
+                >
+                  {MONTH_ABBR[month]}
+                </span>
               ))}
             </div>
-          ))}
+            <div className="flex" style={{ gap: YEAR_GAP }}>
+              {columns.map((col, ci) => (
+                <div key={ci} className="flex flex-col" style={{ gap: YEAR_GAP }}>
+                  {col.map((d, di) => (
+                    <div
+                      key={di}
+                      className="rounded-[3px]"
+                      style={{ width: YEAR_CELL, height: YEAR_CELL, background: shade(d) }}
+                      title={d ? `${d.dateStr}: ${Math.round(d.completion * 100)}%` : ''}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Small and lower case: a key should sit under the picture, not
+            compete with it. */}
+        <div className="flex items-center gap-3 mt-3 flex-wrap text-[10px]"
+          style={{ color: 'var(--mv-faint)' }}>
+          <span className="flex items-center gap-1">
+            Less
+            {swatch('var(--mv-track)', 'l0')}
+            {swatch('var(--mv-green-1)', 'l1')}
+            {swatch('var(--mv-green-2)', 'l2')}
+            {swatch(GREEN, 'l3')}
+            More
+          </span>
+          <span className="flex items-center gap-1">
+            {swatch('var(--mv-violet)', 'rest')}
+            Rest
+          </span>
+          <span className="flex items-center gap-1">
+            {swatch('var(--mv-empty)', 'empty')}
+            Untracked
+          </span>
         </div>
       </div>
     </>
@@ -167,31 +236,84 @@ function YearPanel({ now }: { now: Date }) {
 }
 
 function WeightPanel() {
-  const metrics = useMemo(
-    () => loadBodyMetrics().filter(m => typeof m.weight === 'number').sort((a, b) => a.date.localeCompare(b.date)),
-    []
+  const [metrics, setMetrics] = useState(() => loadBodyMetrics());
+  const [entering, setEntering] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const weighed = useMemo(
+    () => metrics.filter(m => typeof m.weight === 'number').sort((a, b) => a.date.localeCompare(b.date)),
+    [metrics]
   );
 
-  if (metrics.length === 0) {
+  const save = useCallback(() => {
+    const value = parseFloat(draft);
+    // A fat-fingered decimal is easy and a silent bad point ruins the line.
+    if (!Number.isFinite(value) || value <= 0 || value > 1500) return;
+    setMetrics(recordWeight(Math.round(value * 10) / 10));
+    setDraft('');
+    setEntering(false);
+  }, [draft]);
+
+  const today = formatLocalDate(new Date());
+  const loggedToday = weighed.some(m => m.date === today);
+
+  const entry = entering ? (
+    <div className="flex items-center gap-2 mt-3">
+      <input
+        type="number"
+        inputMode="decimal"
+        step="0.1"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); }}
+        placeholder="lb"
+        aria-label="Weight in pounds"
+        autoFocus
+        className="flex-grow min-w-0 px-3 py-2 rounded-[10px] text-[15px] bg-transparent outline-none"
+        style={{ border: '1.5px solid var(--mv-track)', color: 'var(--mv-ink)' }}
+      />
+      <button
+        onClick={() => { setEntering(false); setDraft(''); }}
+        className="mv-caps px-2 py-2"
+      >Cancel</button>
+      <button
+        onClick={save}
+        disabled={!draft.trim()}
+        className="px-4 h-10 rounded-[10px] text-[13px] font-semibold disabled:opacity-40"
+        style={{ background: 'var(--mv-ink)', color: 'var(--mv-paper)' }}
+      >Save</button>
+    </div>
+  ) : (
+    <button
+      onClick={() => setEntering(true)}
+      className="mv-caps mt-3"
+      style={{ color: 'var(--mv-ink)' }}
+    >
+      {loggedToday ? "Update today's weight" : "Log today's weight"}
+    </button>
+  );
+
+  if (weighed.length === 0) {
     return (
       <>
         <div className="mv-caps mx-1 mb-2">Weight</div>
         <div className="mv-card p-5">
           <div className="text-[13.5px]" style={{ color: 'var(--mv-muted)' }}>
-            Nothing recorded. Import from Apple Health in Settings.
+            Nothing recorded yet.
           </div>
+          {entry}
         </div>
       </>
     );
   }
 
-  const latest = metrics[metrics.length - 1];
+  const latest = weighed[weighed.length - 1];
   const monthAgo = new Date();
   monthAgo.setMonth(monthAgo.getMonth() - 1);
-  const baseline = metrics.find(m => new Date(m.date) >= monthAgo) ?? metrics[0];
+  const baseline = weighed.find(m => new Date(m.date) >= monthAgo) ?? weighed[0];
   const delta = latest.weight! - baseline.weight!;
 
-  const values = metrics.slice(-40).map(m => m.weight!);
+  const values = weighed.slice(-40).map(m => m.weight!);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
@@ -212,10 +334,13 @@ function WeightPanel() {
             {delta > 0 ? '+' : ''}{delta.toFixed(1)} this month
           </span>
         </div>
-        <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
-          <polyline points={points} fill="none" stroke={GREEN} strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        </svg>
+        {values.length > 1 && (
+          <svg width="100%" height="44" viewBox="0 0 320 44" preserveAspectRatio="none" className="block">
+            <polyline points={points} fill="none" stroke={GREEN} strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+        {entry}
       </div>
     </>
   );
@@ -245,30 +370,28 @@ export function InsightsPage() {
   return (
     <div className="mv-paper min-h-screen pb-40">
       <div className="max-w-lg mx-auto">
-        <ScreenHeader
-          label="Insights"
-          alt="Insights"
-          trailing={
-            <div className="flex gap-4 flex-shrink-0">
-              {(['week', 'month', 'year'] as Range[]).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className="mv-caps pb-0.5"
-                  style={
-                    range === r
-                      ? { color: 'var(--mv-ink)', borderBottom: '2px solid var(--mv-ink)' }
-                      : undefined
-                  }
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          }
-        />
+        <ScreenHeader label="Insights" alt="Insights" />
 
-        <section className="px-4 pt-6 mv-rise">
+        {/* The same segmented control Library uses for its tabs. */}
+        <div className="px-4 mt-4">
+          <div className="flex rounded-xl bg-slate-200 dark:bg-slate-800 p-1">
+            {(['week', 'month', 'year'] as Range[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`flex-1 py-2.5 px-1 rounded-lg text-[12.5px] font-medium capitalize transition-colors ${
+                  range === r
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className="px-4 pt-5 mv-rise">
           {range === 'week' && <WeekPanel now={now} />}
           {range === 'month' && <MonthPanel now={now} />}
           {range === 'year' && <YearPanel now={now} />}

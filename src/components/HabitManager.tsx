@@ -10,7 +10,7 @@
 
 import { useState } from 'react';
 import type { Habit, HabitCadence } from '../types/habits';
-import { loadHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence } from '../data/habits';
+import { loadHabits, addHabit, updateHabit, deleteHabit, moveHabit, describeCadence, habitColor } from '../data/habits';
 import { IconPicker } from './IconPicker';
 import { HabitIcon } from './HabitIcon';
 
@@ -35,10 +35,11 @@ interface DraftState {
   perWeek: number;
   heldByDefault: boolean;
   icon: string | undefined;
+  color: string | undefined;
 }
 
 const blankDraft = (): DraftState =>
-  ({ id: null, name: '', kind: 'daily', perWeek: 3, heldByDefault: false, icon: undefined });
+  ({ id: null, name: '', kind: 'daily', perWeek: 3, heldByDefault: false, icon: undefined, color: undefined });
 
 const draftFrom = (habit: Habit): DraftState => ({
   id: habit.id,
@@ -47,6 +48,7 @@ const draftFrom = (habit: Habit): DraftState => ({
   perWeek: habit.cadence.kind === 'daily' ? 3 : habit.cadence.perWeek,
   heldByDefault: habit.heldByDefault,
   icon: habit.icon,
+  color: habit.color,
 });
 
 function HabitEditor({ draft, onChange, onSave, onCancel }: {
@@ -63,7 +65,7 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
 
       <div className="flex items-center gap-2 mb-3 px-3 py-2.5 rounded-[10px]"
         style={{ border: '1.5px solid var(--mv-track)' }}>
-        <HabitIcon icon={draft.icon} size={20} style={{ color: 'var(--mv-muted)' }} />
+        <HabitIcon icon={draft.icon} size={20} style={{ color: habitColor(draft) }} />
         <input
           type="text"
           value={draft.name}
@@ -137,7 +139,12 @@ function HabitEditor({ draft, onChange, onSave, onCancel }: {
       </button>
 
       <div className="mb-4">
-        <IconPicker value={draft.icon} onChange={icon => onChange({ ...draft, icon })} />
+        <IconPicker
+          value={draft.icon}
+          onChange={icon => onChange({ ...draft, icon })}
+          color={draft.color}
+          onColorChange={color => onChange({ ...draft, color })}
+        />
       </div>
 
       <div className="flex gap-2">
@@ -188,6 +195,7 @@ export function HabitManager() {
       cadence,
       heldByDefault: draft.heldByDefault,
       icon: draft.icon,
+      color: draft.color,
     };
 
     if (draft.id) updateHabit(draft.id, fields);
@@ -229,7 +237,7 @@ export function HabitManager() {
         {habits.map((habit, i) => (
           <div key={habit.id} className="mv-card p-4">
             <div className="flex items-start gap-3">
-              <HabitIcon icon={habit.icon} size={22} style={{ color: 'var(--mv-muted)', marginTop: 1 }} />
+              <HabitIcon icon={habit.icon} size={22} style={{ color: habitColor(habit), marginTop: 1 }} />
               <div className="flex-grow min-w-0">
                 <div className="text-[15px]" style={{ color: 'var(--mv-ink)' }}>{habit.name}</div>
                 <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--mv-muted)' }}>

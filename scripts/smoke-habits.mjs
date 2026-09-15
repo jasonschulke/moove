@@ -42,8 +42,8 @@ await openLibrary();
 check('Library lands on Habits', await page.getByRole('button', { name: 'Add a Habit' }).isVisible().catch(() => false));
 check('the seeded five are listed',
   (await names()).join(',') === 'Walk,Walk the dog,Dry day,Lift,Run', (await names()).join(','));
-check('the dry day reads as held',
-  await page.getByText('5 of 7 days, held unless you break it').isVisible().catch(() => false));
+check('the dry day reads as a weekly allowance, not as held',
+  await page.getByText('5 of 7 days', { exact: true }).isVisible().catch(() => false));
 check('a weekly habit reads as weekly', await page.getByText('3× a week').isVisible().catch(() => false));
 
 // Icons. The font is remote, so these assert the ligature reaches the DOM
@@ -71,7 +71,7 @@ check('the new habit appears', (await names()).includes('Stretch'), (await names
 
 await openToday();
 const widened = await ring().getAttribute('aria-label');
-check('the ring widens to 4', widened === '1 of 4 done today', widened ?? '(missing)');
+check('the ring widens to 4', widened === '0 of 4 done today', widened ?? '(missing)');
 check('the new habit is loggable on Today',
   await page.getByRole('button', { name: 'Stretch', exact: true }).isVisible().catch(() => false));
 const todayIcons = await iconNames();
@@ -109,7 +109,7 @@ check('delete removes it', !(await names()).includes('Stretching'), (await names
 
 await openToday();
 const narrowed = await ring().getAttribute('aria-label');
-check('the ring narrows back to 3', narrowed === '1 of 3 done today', narrowed ?? '(missing)');
+check('the ring narrows back to 3', narrowed === '0 of 3 done today', narrowed ?? '(missing)');
 
 // An icon font renders its ligature as plain words until the glyph arrives.
 // On a phone with no signal that is what the row says, so the glyph is held

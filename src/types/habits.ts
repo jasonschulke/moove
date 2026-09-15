@@ -30,6 +30,12 @@ export interface Habit {
    * Optional: habits made before icons existed simply show none.
    */
   icon?: string;
+  /**
+   * A key from HABIT_COLORS. Tints this habit wherever it appears: its icon,
+   * its check when done, its bar in Insights. Optional; without one a habit
+   * uses the app's green.
+   */
+  color?: string;
   order: number;
 }
 

@@ -78,9 +78,9 @@ check('Today carries the mark and wordmark',
   (await page.locator('header img[alt="Moove"]').count()) === 2,
   String(await page.locator('header img[alt="Moove"]').count()));
 
-// The held dry day means an untouched day starts at 1 of 3.
+// Nothing is held by default, so an untouched day starts empty.
 const start = await ring().getAttribute('aria-label').catch(() => null);
-check('ring starts at 1 of 3', start === '1 of 3 done today', start ?? '(missing)');
+check('ring starts at 0 of 3', start === '0 of 3 done today', start ?? '(missing)');
 
 const reasonLine = await page.locator('.text-\\[13\\.5px\\]').first().innerText().catch(() => '');
 check('the suggestion carries a reason line', reasonLine.trim().length > 0, reasonLine);
@@ -89,18 +89,18 @@ check('the reason quotes the numbers', /\d/.test(reasonLine), reasonLine);
 await page.getByRole('button', { name: 'Walk', exact: true }).click();
 await page.waitForTimeout(500);
 const after = await ring().getAttribute('aria-label');
-check('logging Walk advances the ring', after === '2 of 3 done today', after ?? '(missing)');
+check('logging Walk advances the ring', after === '1 of 3 done today', after ?? '(missing)');
 
 await page.reload({ waitUntil: 'networkidle' });
 await settle();
 const persisted = await ring().getAttribute('aria-label');
-check('the log survives a reload', persisted === '2 of 3 done today', persisted ?? '(missing)');
+check('the log survives a reload', persisted === '1 of 3 done today', persisted ?? '(missing)');
 
-// Breaking the held dry day takes the score back down.
+// A second daily habit takes it to two of three.
 await page.getByRole('button', { name: 'Dry day', exact: true }).click();
 await page.waitForTimeout(500);
-const broken = await ring().getAttribute('aria-label');
-check('breaking the dry day lowers the ring', broken === '1 of 3 done today', broken ?? '(missing)');
+const two = await ring().getAttribute('aria-label');
+check('a second daily habit advances it again', two === '2 of 3 done today', two ?? '(missing)');
 
 // A weekly habit is debt, not day score. Its row carries its own count.
 // Weekly rows include that count in their accessible name, so match on a prefix.
@@ -119,7 +119,7 @@ check('rest day can be set', await page.getByText('Rest day', { exact: true }).i
 check('the suggestion goes quiet on a rest day',
   !(await page.getByText('Next', { exact: true }).isVisible().catch(() => false)));
 const restRing = await ring().getAttribute('aria-label');
-check('a rest day still scores the daily habits', restRing === '1 of 3 done today', restRing ?? '(missing)');
+check('a rest day still scores the daily habits', restRing === '2 of 3 done today', restRing ?? '(missing)');
 await page.getByRole('button', { name: 'Resting today' }).click();
 await page.waitForTimeout(500);
 check('rest day can be cleared', await page.getByText('Next').first().isVisible().catch(() => false));

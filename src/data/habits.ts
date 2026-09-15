@@ -15,15 +15,41 @@ import { generateUUID } from '../utils/uuid';
 const HABIT_LOGS_KEY = 'habit_logs';
 const HABIT_DEFS_KEY = 'habit_definitions';
 const HABITS_SEEDED_KEY = 'habit_definitions_seeded';
+const HELD_MIGRATED_KEY = 'habit_held_default_off';
 
 /** What a new install starts with. Editable from Library once it is seeded. */
 export const DEFAULT_HABITS: Habit[] = [
-  { id: 'walk', name: 'Walk',         cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'directions_walk', order: 0 },
-  { id: 'dog',  name: 'Walk the dog', cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'pets',            order: 1 },
-  { id: 'dry',  name: 'Dry day',      cadence: { kind: 'daily-quota', perWeek: 5 }, heldByDefault: true,  icon: 'no_drinks',       order: 2 },
-  { id: 'lift', name: 'Lift',         cadence: { kind: 'weekly', perWeek: 3 },      heldByDefault: false, icon: 'fitness_center',  order: 3 },
-  { id: 'run',  name: 'Run',          cadence: { kind: 'weekly', perWeek: 1 },      heldByDefault: false, icon: 'directions_run',  order: 4 },
+  { id: 'walk', name: 'Walk',         cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'directions_walk', color: 'green',  order: 0 },
+  { id: 'dog',  name: 'Walk the dog', cadence: { kind: 'daily' },                   heldByDefault: false, icon: 'pets',            color: 'amber',  order: 1 },
+  { id: 'dry',  name: 'Dry day',      cadence: { kind: 'daily-quota', perWeek: 5 }, heldByDefault: false, icon: 'no_drinks',       color: 'plum',   order: 2 },
+  { id: 'lift', name: 'Lift',         cadence: { kind: 'weekly', perWeek: 3 },      heldByDefault: false, icon: 'fitness_center',  color: 'rust',   order: 3 },
+  { id: 'run',  name: 'Run',          cadence: { kind: 'weekly', perWeek: 1 },      heldByDefault: false, icon: 'directions_run',  color: 'indigo', order: 4 },
 ];
+
+/**
+ * The colours a habit can take. Deliberately muted: these sit on warm paper
+ * next to each other in a list, so anything saturated shouts. Each is dark
+ * enough to read as an icon and as a bar on white.
+ *
+ * The ring is not among the places colour goes. A segment per habit would put
+ * the habit count back into the shape of the donut, which is the thing a
+ * single completion score was chosen to avoid.
+ */
+export const HABIT_COLORS: { key: string; label: string; value: string }[] = [
+  { key: 'green',  label: 'Green',  value: '#047857' },
+  { key: 'teal',   label: 'Teal',   value: '#0f766e' },
+  { key: 'blue',   label: 'Blue',   value: '#1d4ed8' },
+  { key: 'indigo', label: 'Indigo', value: '#4338ca' },
+  { key: 'plum',   label: 'Plum',   value: '#7c3aed' },
+  { key: 'rose',   label: 'Rose',   value: '#be123c' },
+  { key: 'rust',   label: 'Rust',   value: '#c2410c' },
+  { key: 'amber',  label: 'Amber',  value: '#b45309' },
+];
+
+/** The CSS colour for a habit, falling back to the app's green. */
+export function habitColor(habit: { color?: string }): string {
+  return HABIT_COLORS.find(c => c.key === habit.color)?.value ?? 'var(--mv-green)';
+}
 
 /**
  * The icons offered in the picker, grouped so the grid reads as sections
@@ -68,7 +94,7 @@ export function loadHabits(): Habit[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return (parsed as Habit[]).slice().sort((a, b) => a.order - b.order);
+        return migrateHeldDefault((parsed as Habit[]).slice().sort((a, b) => a.order - b.order));
       }
     }
   } catch {
@@ -81,6 +107,21 @@ export function loadHabits(): Habit[] {
   return DEFAULT_HABITS.slice();
 }
 
+/**
+ * A habit that starts each day already ticked made the ring read 1 of 3 before
+ * anything had happened, which is not what "done" should mean. The flag stays
+ * available in the editor for anyone who wants the Streaks behaviour, but it
+ * is off by default, and this turns it off once on lists that predate that.
+ */
+function migrateHeldDefault(habits: Habit[]): Habit[] {
+  if (localStorage.getItem(HELD_MIGRATED_KEY)) return habits;
+  localStorage.setItem(HELD_MIGRATED_KEY, 'true');
+  if (!habits.some(h => h.heldByDefault)) return habits;
+  const next = habits.map(h => (h.heldByDefault ? { ...h, heldByDefault: false } : h));
+  localStorage.setItem(HABIT_DEFS_KEY, JSON.stringify(next));
+  return next;
+}
+
 /** Writes the list, renumbering order so it always matches position. */
 export function saveHabits(habits: Habit[]): void {
   const ordered = habits.map((h, i) => ({ ...h, order: i }));
@@ -88,7 +129,7 @@ export function saveHabits(habits: Habit[]): void {
   localStorage.setItem(HABITS_SEEDED_KEY, 'true');
 }
 
-export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean; icon?: string }): Habit {
+export function addHabit(input: { name: string; cadence: HabitCadence; heldByDefault: boolean; icon?: string; color?: string }): Habit {
   const habits = loadHabits();
   const habit: Habit = { id: generateUUID(), order: habits.length, ...input };
   saveHabits([...habits, habit]);

@@ -161,3 +161,46 @@ describe('agreement', () => {
     expect(lines.some(l => l.includes(' lift'))).toBe(true);
   });
 });
+
+describe('sounding like a person', () => {
+  const ALL = () => {
+    const lines = [];
+    for (const situation of SITUATIONS) {
+      for (const voice of VOICES) {
+        for (let day = 1; day <= 28; day++) {
+          lines.push({
+            situation, voice,
+            text: say(situation, FULL_CONTEXT, voice, `2026-09-${String(day).padStart(2, '0')}`),
+          });
+        }
+      }
+    }
+    return lines;
+  };
+
+  it('contracts where people contract', () => {
+    // Avoiding contractions is the single loudest tell. These are the forms
+    // that read as written-not-spoken wherever they appear.
+    // Trailing \s+\w matters: "ready when you are." is correct English and
+    // cannot be contracted at a clause end, so only mid-sentence forms count.
+    const stilted = /\b(do not|did not|does not|is not|are not|have not|has not|will not|cannot|it is|I am|you are|that is|there is|let us)\s+\w/i;
+    const offenders = ALL().filter(l => stilted.test(l.text));
+    expect(offenders.map(o => `${o.voice}: ${o.text}`).slice(0, 5)).toEqual([]);
+  });
+
+  it('keeps each voice its own words', () => {
+    // A line appearing in two voices means neither one owns it.
+    const byText = new Map();
+    for (const { voice, text } of ALL()) {
+      if (!byText.has(text)) byText.set(text, new Set());
+      byText.get(text).add(voice);
+    }
+    const shared = [...byText.entries()].filter(([, voices]) => voices.size > 1);
+    expect(shared.map(([text, voices]) => `"${text}" in ${[...voices].join(' + ')}`)).toEqual([]);
+  });
+
+  it('stays short enough to read at a glance', () => {
+    const long = ALL().filter(l => l.text.length > 72);
+    expect(long.map(l => `${l.voice}: ${l.text}`)).toEqual([]);
+  });
+});

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getTodayView } from '../data/today';
 import type { HabitStatus } from '../data/today';
-import { toggleHabit } from '../data/habits';
+import { toggleHabit, habitColor } from '../data/habits';
 import { toggleRestDay } from '../data/storage';
 import { say } from '../data/voice';
 import { CompletionRing } from '../components/CompletionRing';
@@ -46,7 +46,7 @@ function HabitRow({ status, onToggle }: { status: HabitStatus; onToggle: () => v
       <span className="flex items-center justify-center flex-shrink-0 rounded-full transition-colors"
         style={{
           width: 26, height: 26,
-          background: done ? 'var(--mv-green)' : 'transparent',
+          background: done ? habitColor(habit) : 'transparent',
           border: done ? 'none' : '1.8px solid var(--mv-track)',
         }}>
         {done && <CheckMark />}
@@ -55,7 +55,7 @@ function HabitRow({ status, onToggle }: { status: HabitStatus; onToggle: () => v
       <HabitIcon
         icon={habit.icon}
         size={20}
-        style={{ color: 'var(--mv-muted)', opacity: done ? 0.45 : 1 }}
+        style={{ color: habitColor(habit), opacity: done ? 0.45 : 1 }}
       />
 
       <span className="flex-grow min-w-0 text-[15px]"
